@@ -4,9 +4,15 @@ services:
     container_name: scalablerest-mysql
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-productapiapex}
+      AUTH_DB_NAME: ${AUTH_DB_NAME:-authdb}
+      AUTH_DB_USERNAME: ${AUTH_DB_USERNAME:-auth_user}
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD}
+      PRODUCT_DB_NAME: ${PRODUCT_DB_NAME:-productdb}
+      PRODUCT_DB_USERNAME: ${PRODUCT_DB_USERNAME:-product_user}
+      PRODUCT_DB_PASSWORD: ${PRODUCT_DB_PASSWORD}
     volumes:
       - mysql-data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
@@ -74,9 +80,9 @@ services:
     environment:
       CONFIG_SERVER_URL: http://config-server:8888
       EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
-      AUTH_DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-productapiapex}
-      AUTH_DB_USERNAME: root
-      AUTH_DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      AUTH_DB_URL: jdbc:mysql://mysql:3306/${AUTH_DB_NAME:-authdb}
+      AUTH_DB_USERNAME: ${AUTH_DB_USERNAME:-auth_user}
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD}
       AUTH_JPA_DDL_AUTO: update
       AUTH_JPA_SHOW_SQL: ${AUTH_JPA_SHOW_SQL:-false}
       JWT_SECRET: ${JWT_SECRET}
@@ -96,9 +102,9 @@ services:
     environment:
       CONFIG_SERVER_URL: http://config-server:8888
       EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
-      PRODUCT_DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-productapiapex}
-      PRODUCT_DB_USERNAME: root
-      PRODUCT_DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      PRODUCT_DB_URL: jdbc:mysql://mysql:3306/${PRODUCT_DB_NAME:-productdb}
+      PRODUCT_DB_USERNAME: ${PRODUCT_DB_USERNAME:-product_user}
+      PRODUCT_DB_PASSWORD: ${PRODUCT_DB_PASSWORD}
       PRODUCT_JPA_DDL_AUTO: update
       PRODUCT_JPA_SHOW_SQL: ${PRODUCT_JPA_SHOW_SQL:-false}
       JWT_SECRET: ${JWT_SECRET}

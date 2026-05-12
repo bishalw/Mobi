@@ -11,7 +11,7 @@ Spring Boot microservices demo using Eureka service discovery, Spring Cloud Conf
 | `api-gateway` | `8080` | Gateway entry point for clients |
 | `auth-service` | `8082` | Authentication service |
 | `product-service` | `8083` | Product API service |
-| `mysql` | internal `3306` | MySQL database for auth/product services |
+| `mysql` | internal `3306` | MySQL server with separate auth/product databases |
 
 Runtime flow:
 
@@ -23,7 +23,7 @@ Client
 api-gateway discovers services through Eureka.
 services load config from config-server.
 config-server reads config from config-repo/.
-auth-service and product-service use MySQL.
+auth-service and product-service use separate MySQL databases.
 ```
 
 ## Requirements
@@ -48,7 +48,14 @@ Edit `.env.local` and set local values:
 
 ```bash
 MYSQL_ROOT_PASSWORD=localdevpassword
-MYSQL_DATABASE=productapiapex
+
+AUTH_DB_NAME=authdb
+AUTH_DB_USERNAME=auth_user
+AUTH_DB_PASSWORD=replace-with-local-auth-db-password
+
+PRODUCT_DB_NAME=productdb
+PRODUCT_DB_USERNAME=product_user
+PRODUCT_DB_PASSWORD=replace-with-local-product-db-password
 
 JWT_SECRET=replace-with-at-least-32-character-secret
 JWT_EXPIRATION_MS=3600000
@@ -148,6 +155,20 @@ These files are safe to commit because secrets are injected through environment 
 ```properties
 spring.datasource.password=${AUTH_DB_PASSWORD}
 jwt.secret=${JWT_SECRET}
+```
+
+For local Docker Compose, MySQL is one container with separate service-owned databases and users:
+
+```text
+mysql
+├── authdb     owned by auth_user
+└── productdb  owned by product_user
+```
+
+The database setup is initialized by:
+
+```text
+docker/mysql/init/01-create-service-databases.sh
 ```
 
 The config server location is environment-overridable:
