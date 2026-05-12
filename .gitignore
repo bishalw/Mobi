@@ -22,9 +22,13 @@ dist/
 *.log
 *.pid
 
-# Local configuration with credentials
-config-repo/*.properties
-!config-repo/*.example.properties
+# Local environment files with secrets
+.env
+.env.local
+.env.*.local
+
+# Local configuration overrides with credentials
+config-repo/*.local.properties
 
 # Local backups
 *.git-backup/

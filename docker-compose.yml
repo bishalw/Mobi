@@ -1,0 +1,113 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: scalablerest-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-productapiapex}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  discovery-service:
+    build:
+      context: ./discovery-service
+    image: scalablerest/discovery-service:local
+    container_name: scalablerest-discovery-service
+    ports:
+      - "8761:8761"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8761 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  config-server:
+    build:
+      context: ./config-server
+    image: scalablerest/config-server:local
+    container_name: scalablerest-config-server
+    ports:
+      - "8888:8888"
+    environment:
+      EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
+      CONFIG_REPO_LOCATION: file:/config-repo
+    volumes:
+      - ./config-repo:/config-repo:ro
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8888/auth-service/default >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+    image: scalablerest/api-gateway:local
+    container_name: scalablerest-api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      CONFIG_SERVER_URL: http://config-server:8888
+      EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
+    depends_on:
+      config-server:
+        condition: service_healthy
+
+  auth-service:
+    build:
+      context: ./auth-service
+    image: scalablerest/auth-service:local
+    container_name: scalablerest-auth-service
+    ports:
+      - "8082:8082"
+    environment:
+      CONFIG_SERVER_URL: http://config-server:8888
+      EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
+      AUTH_DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-productapiapex}
+      AUTH_DB_USERNAME: root
+      AUTH_DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      AUTH_JPA_DDL_AUTO: update
+      AUTH_JPA_SHOW_SQL: ${AUTH_JPA_SHOW_SQL:-false}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-3600000}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+
+  product-service:
+    build:
+      context: ./product-service
+    image: scalablerest/product-service:local
+    ports:
+      - "8083"
+    environment:
+      CONFIG_SERVER_URL: http://config-server:8888
+      EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
+      PRODUCT_DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-productapiapex}
+      PRODUCT_DB_USERNAME: root
+      PRODUCT_DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      PRODUCT_JPA_DDL_AUTO: update
+      PRODUCT_JPA_SHOW_SQL: ${PRODUCT_JPA_SHOW_SQL:-false}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-3600000}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+
+volumes:
+  mysql-data:
