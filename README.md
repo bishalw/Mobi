@@ -104,6 +104,16 @@ curl http://localhost:8888/auth-service/default
 curl http://localhost:8888/product-service/default
 ```
 
+Health checks:
+
+```bash
+curl http://localhost:8761/actuator/health
+curl http://localhost:8888/actuator/health
+curl http://localhost:8080/actuator/health
+curl http://localhost:8082/actuator/health
+curl http://localhost:8083/actuator/health
+```
+
 Gateway checks:
 
 ```bash
@@ -115,6 +125,7 @@ Expected behavior:
 
 - Eureka dashboard loads on port `8761`.
 - Config server endpoints return `200`.
+- Actuator health endpoints return `{"status":"UP"}`.
 - Auth route is reachable through the gateway.
 - Product route may return `403` without authentication because it is protected.
 
