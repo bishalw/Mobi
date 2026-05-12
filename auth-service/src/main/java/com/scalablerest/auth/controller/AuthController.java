@@ -1,7 +1,8 @@
 package com.scalablerest.auth.controller;
 
-import com.scalablerest.auth.dto.AuthRequest;
 import com.scalablerest.auth.dto.AuthResponse;
+import com.scalablerest.auth.dto.LoginRequest;
+import com.scalablerest.auth.dto.RegisterRequest;
 import com.scalablerest.auth.entity.User;
 import com.scalablerest.auth.repository.UserRepository;
 import com.scalablerest.auth.security.JwtUtil;
@@ -27,7 +28,7 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public String registerUser(@Valid @RequestBody AuthRequest request) {
+    public String registerUser(@Valid @RequestBody RegisterRequest request) {
         if (userRepository.findByUsername(request.getUsername()).isPresent()) {
             throw new IllegalArgumentException("Username already exists");
         }
@@ -42,7 +43,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public AuthResponse loginUser(@Valid @RequestBody AuthRequest request) {
+    public AuthResponse loginUser(@Valid @RequestBody LoginRequest request) {
         User user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new IllegalArgumentException("Invalid credentials"));
 
