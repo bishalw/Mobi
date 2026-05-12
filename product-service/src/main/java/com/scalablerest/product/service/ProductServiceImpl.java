@@ -1,6 +1,7 @@
 package com.scalablerest.product.service;
 
-import com.scalablerest.product.dto.ProductDTO;
+import com.scalablerest.product.dto.ProductRequest;
+import com.scalablerest.product.dto.ProductResponse;
 import com.scalablerest.product.entity.Product;
 import com.scalablerest.product.exception.ResourceNotFoundException;
 import com.scalablerest.product.mapper.ProductMapper;
@@ -19,32 +20,32 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public ProductDTO createProduct(ProductDTO productDTO) {
-        Product product = ProductMapper.mapToEntity(productDTO);
-        return ProductMapper.mapToDTO(productRepository.save(product));
+    public ProductResponse createProduct(ProductRequest productRequest) {
+        Product product = ProductMapper.mapToEntity(productRequest);
+        return ProductMapper.mapToResponse(productRepository.save(product));
     }
 
     @Override
-    public ProductDTO getProductById(Long id) {
+    public ProductResponse getProductById(Long id) {
         Product product = findProductById(id);
-        return ProductMapper.mapToDTO(product);
+        return ProductMapper.mapToResponse(product);
     }
 
     @Override
-    public List<ProductDTO> getAllProducts() {
+    public List<ProductResponse> getAllProducts() {
         return productRepository.findAll()
                 .stream()
-                .map(ProductMapper::mapToDTO)
+                .map(ProductMapper::mapToResponse)
                 .toList();
     }
 
     @Override
-    public ProductDTO updateProduct(Long id, ProductDTO productDTO) {
+    public ProductResponse updateProduct(Long id, ProductRequest productRequest) {
         Product existingProduct = findProductById(id);
-        existingProduct.setName(productDTO.getName());
-        existingProduct.setPrice(productDTO.getPrice());
-        existingProduct.setQuantity(productDTO.getQuantity());
-        return ProductMapper.mapToDTO(productRepository.save(existingProduct));
+        existingProduct.setName(productRequest.getName());
+        existingProduct.setPrice(productRequest.getPrice());
+        existingProduct.setQuantity(productRequest.getQuantity());
+        return ProductMapper.mapToResponse(productRepository.save(existingProduct));
     }
 
     @Override

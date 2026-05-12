@@ -1,6 +1,7 @@
 package com.scalablerest.product.controller;
 
-import com.scalablerest.product.dto.ProductDTO;
+import com.scalablerest.product.dto.ProductRequest;
+import com.scalablerest.product.dto.ProductResponse;
 import com.scalablerest.product.service.ProductService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -25,28 +26,28 @@ public class ProductController {
     }
 
     @GetMapping("/allProducts")
-    public List<ProductDTO> fetchAllProducts() {
+    public List<ProductResponse> fetchAllProducts() {
         return productService.getAllProducts();
     }
 
     @PostMapping("/saveProduct")
-    public ProductDTO insertProduct(@Valid @RequestBody ProductDTO productDTO) {
-        return productService.createProduct(productDTO);
+    public ProductResponse insertProduct(@Valid @RequestBody ProductRequest productRequest) {
+        return productService.createProduct(productRequest);
     }
 
     @GetMapping("/products/{id}")
-    public ProductDTO fetchProductById(@PathVariable Long id) {
+    public ProductResponse fetchProductById(@PathVariable Long id) {
         return productService.getProductById(id);
     }
 
     @GetMapping("/products")
-    public List<ProductDTO> fetchProducts() {
+    public List<ProductResponse> fetchProducts() {
         return productService.getAllProducts();
     }
 
     @PutMapping("/updateProduct/{id}")
-    public ProductDTO modifyProduct(@PathVariable Long id, @Valid @RequestBody ProductDTO productDTO) {
-        return productService.updateProduct(id, productDTO);
+    public ProductResponse modifyProduct(@PathVariable Long id, @Valid @RequestBody ProductRequest productRequest) {
+        return productService.updateProduct(id, productRequest);
     }
 
     @DeleteMapping("/deleteProduct/{id}")

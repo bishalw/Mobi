@@ -6,9 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
-public class ProductDTO {
-
-    private Long id;
+public class ProductRequest {
 
     @NotBlank(message = "Product name is required")
     @Size(min = 3, max = 50, message = "Name must be between 3 and 50 characters")
@@ -22,21 +20,13 @@ public class ProductDTO {
     @Min(value = 0, message = "Quantity cannot be negative")
     private Integer quantity;
 
-    public ProductDTO() {
+    public ProductRequest() {
     }
 
-    public ProductDTO(String name, Integer price, Integer quantity) {
+    public ProductRequest(String name, Integer price, Integer quantity) {
         this.name = name;
         this.price = price;
         this.quantity = quantity;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
     }
 
     public String getName() {

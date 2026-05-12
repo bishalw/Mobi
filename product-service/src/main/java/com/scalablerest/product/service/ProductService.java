@@ -1,18 +1,19 @@
 package com.scalablerest.product.service;
 
-import com.scalablerest.product.dto.ProductDTO;
+import com.scalablerest.product.dto.ProductRequest;
+import com.scalablerest.product.dto.ProductResponse;
 
 import java.util.List;
 
 public interface ProductService {
 
-    ProductDTO createProduct(ProductDTO productDTO);
+    ProductResponse createProduct(ProductRequest productRequest);
 
-    ProductDTO getProductById(Long id);
+    ProductResponse getProductById(Long id);
 
-    List<ProductDTO> getAllProducts();
+    List<ProductResponse> getAllProducts();
 
-    ProductDTO updateProduct(Long id, ProductDTO productDTO);
+    ProductResponse updateProduct(Long id, ProductRequest productRequest);
 
     void deleteProduct(Long id);
 }

@@ -1,6 +1,7 @@
 package com.scalablerest.product.mapper;
 
-import com.scalablerest.product.dto.ProductDTO;
+import com.scalablerest.product.dto.ProductRequest;
+import com.scalablerest.product.dto.ProductResponse;
 import com.scalablerest.product.entity.Product;
 
 public class ProductMapper {
@@ -8,23 +9,20 @@ public class ProductMapper {
     private ProductMapper() {
     }
 
-    public static ProductDTO mapToDTO(Product product) {
-        ProductDTO productDto = new ProductDTO();
-        productDto.setId(product.getId());
-        productDto.setName(product.getName());
-        productDto.setPrice(product.getPrice());
-        productDto.setQuantity(product.getQuantity());
-        return productDto;
+    public static ProductResponse mapToResponse(Product product) {
+        ProductResponse productResponse = new ProductResponse();
+        productResponse.setId(product.getId());
+        productResponse.setName(product.getName());
+        productResponse.setPrice(product.getPrice());
+        productResponse.setQuantity(product.getQuantity());
+        return productResponse;
     }
 
-    public static Product mapToEntity(ProductDTO productDTO) {
+    public static Product mapToEntity(ProductRequest productRequest) {
         Product product = new Product();
-        if (productDTO.getId() != null) {
-            product.setId(productDTO.getId());
-        }
-        product.setName(productDTO.getName());
-        product.setPrice(productDTO.getPrice());
-        product.setQuantity(productDTO.getQuantity());
+        product.setName(productRequest.getName());
+        product.setPrice(productRequest.getPrice());
+        product.setQuantity(productRequest.getQuantity());
         return product;
     }
 }
