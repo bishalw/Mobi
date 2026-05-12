@@ -23,7 +23,6 @@ dist/
 *.pid
 
 # Local configuration with credentials
-ProductRestApi/src/main/resources/application.properties
 config-repo/*.properties
 !config-repo/*.example.properties
 
