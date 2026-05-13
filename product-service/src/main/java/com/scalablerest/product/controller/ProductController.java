@@ -35,6 +35,11 @@ public class ProductController {
         return productService.createProduct(productRequest);
     }
 
+    @PostMapping("/products")
+    public ProductResponse createProduct(@Valid @RequestBody ProductRequest productRequest) {
+        return productService.createProduct(productRequest);
+    }
+
     @GetMapping("/products/{id}")
     public ProductResponse fetchProductById(@PathVariable Long id) {
         return productService.getProductById(id);
@@ -50,9 +55,19 @@ public class ProductController {
         return productService.updateProduct(id, productRequest);
     }
 
+    @PutMapping("/products/{id}")
+    public ProductResponse updateProduct(@PathVariable Long id, @Valid @RequestBody ProductRequest productRequest) {
+        return productService.updateProduct(id, productRequest);
+    }
+
     @DeleteMapping("/deleteProduct/{id}")
     public String removeProduct(@PathVariable Long id) {
         productService.deleteProduct(id);
         return "Product delete successfully";
+    }
+
+    @DeleteMapping("/products/{id}")
+    public void deleteProduct(@PathVariable Long id) {
+        productService.deleteProduct(id);
     }
 }

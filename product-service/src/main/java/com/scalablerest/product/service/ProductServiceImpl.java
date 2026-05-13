@@ -42,9 +42,11 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public ProductResponse updateProduct(Long id, ProductRequest productRequest) {
         Product existingProduct = findProductById(id);
+        existingProduct.setSku(productRequest.getSku());
         existingProduct.setName(productRequest.getName());
+        existingProduct.setDescription(productRequest.getDescription());
         existingProduct.setPrice(productRequest.getPrice());
-        existingProduct.setQuantity(productRequest.getQuantity());
+        existingProduct.setActive(productRequest.getActive());
         return ProductMapper.mapToResponse(productRepository.save(existingProduct));
     }
 

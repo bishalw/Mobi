@@ -12,17 +12,23 @@ public class ProductMapper {
     public static ProductResponse mapToResponse(Product product) {
         ProductResponse productResponse = new ProductResponse();
         productResponse.setId(product.getId());
+        productResponse.setSku(product.getSku());
         productResponse.setName(product.getName());
+        productResponse.setDescription(product.getDescription());
         productResponse.setPrice(product.getPrice());
-        productResponse.setQuantity(product.getQuantity());
+        productResponse.setActive(product.isActive());
+        productResponse.setCreatedAt(product.getCreatedAt());
+        productResponse.setUpdatedAt(product.getUpdatedAt());
         return productResponse;
     }
 
     public static Product mapToEntity(ProductRequest productRequest) {
         Product product = new Product();
+        product.setSku(productRequest.getSku());
         product.setName(productRequest.getName());
+        product.setDescription(productRequest.getDescription());
         product.setPrice(productRequest.getPrice());
-        product.setQuantity(productRequest.getQuantity());
+        product.setActive(productRequest.getActive());
         return product;
     }
 }
