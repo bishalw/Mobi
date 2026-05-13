@@ -1,13 +1,11 @@
 # ScalableRest
 
-Spring Boot microservices demo using Eureka service discovery, Spring Cloud Config, Spring Cloud Gateway, MySQL, and Docker Compose.
+Spring Boot microservices demo using Spring Cloud Gateway, MySQL, explicit service URLs, and Docker Compose.
 
 ## Architecture
 
 | Service | Port | Description |
 | --- | ---: | --- |
-| `discovery-service` | `8761` | Eureka service registry |
-| `config-server` | `8888` | Centralized Spring Cloud Config server |
 | `api-gateway` | `8080` | Gateway entry point for clients |
 | `auth-service` | `8082` | Authentication service |
 | `product-service` | `8083` | Product API service |
@@ -20,9 +18,8 @@ Client
   -> api-gateway
   -> auth-service / product-service
 
-api-gateway discovers services through Eureka.
-services load config from config-server.
-config-server reads config from config-repo/.
+api-gateway routes to services through environment-configured URLs.
+services load config from local Spring Boot properties and Docker Compose environment variables.
 auth-service and product-service use separate MySQL databases.
 ```
 
@@ -91,24 +88,9 @@ docker compose --env-file .env.local down -v
 
 ## Verification
 
-Open the Eureka dashboard:
-
-```text
-http://localhost:8761
-```
-
-Config server checks:
-
-```bash
-curl http://localhost:8888/auth-service/default
-curl http://localhost:8888/product-service/default
-```
-
 Health checks:
 
 ```bash
-curl http://localhost:8761/actuator/health
-curl http://localhost:8888/actuator/health
 curl http://localhost:8080/actuator/health
 curl http://localhost:8082/actuator/health
 curl http://localhost:8083/actuator/health
@@ -123,45 +105,33 @@ curl -i -X OPTIONS http://localhost:8080/productapi/products
 
 Expected behavior:
 
-- Eureka dashboard loads on port `8761`.
-- Config server endpoints return `200`.
 - Actuator health endpoints return `{"status":"UP"}`.
 - Auth route is reachable through the gateway.
 - Product route may return `403` without authentication because it is protected.
 
-## Service discovery
+## Service routing
 
-The gateway routes through Eureka using service IDs:
-
-```properties
-lb://AUTH-SERVICE
-lb://PRODUCT-SERVICE
-```
-
-Services use an environment-overridable Eureka URL:
+The gateway routes through explicit, environment-overridable service URLs:
 
 ```properties
-eureka.client.service-url.defaultZone=${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
+spring.cloud.gateway.server.webflux.routes[0].uri=${AUTH_SERVICE_URL:http://localhost:8082}
+spring.cloud.gateway.server.webflux.routes[1].uri=${PRODUCT_SERVICE_URL:http://localhost:8083}
 ```
 
-Docker Compose sets this to:
+Docker Compose sets these to the internal Compose DNS names and container ports:
 
 ```text
-http://discovery-service:8761/eureka/
+AUTH_SERVICE_URL=http://auth-service:8082
+PRODUCT_SERVICE_URL=http://product-service:8083
 ```
+
+For future Kubernetes deployment, use the same style with Kubernetes Service DNS names.
 
 ## Configuration
 
-Service configuration lives in:
+Service configuration lives in each service's `src/main/resources/application.properties` and is overridden by environment variables.
 
-```text
-config-repo/
-├── api-gateway.properties
-├── auth-service.properties
-└── product-service.properties
-```
-
-These files are safe to commit because secrets are injected through environment variables:
+Secrets and environment-specific values are injected through Docker Compose:
 
 ```properties
 spring.datasource.password=${AUTH_DB_PASSWORD}
@@ -182,33 +152,20 @@ The database setup is initialized by:
 docker/mysql/init/01-create-service-databases.sh
 ```
 
-The config server location is environment-overridable:
-
-```properties
-spring.cloud.config.server.native.search-locations=${CONFIG_REPO_LOCATION:file:../config-repo}
-```
-
-Docker Compose mounts `config-repo/` into the config server container and sets:
-
-```text
-CONFIG_REPO_LOCATION=file:/config-repo
-```
-
 ## Scaling locally
 
-Because the gateway discovers service instances through Eureka, `product-service` can be scaled locally:
-
-```bash
-docker compose --env-file .env.local up --scale product-service=3 -d
-```
-
-Then check Eureka:
+Docker Compose DNS provides stable service names for local development:
 
 ```text
-http://localhost:8761
+http://auth-service:8082
+http://product-service:8083
 ```
 
-You should see multiple `PRODUCT-SERVICE` instances.
+For production-grade scaling later, Kubernetes Services should handle traffic across replicas while the application keeps using service URLs such as:
+
+```text
+http://product-service:8083
+```
 
 ## Development
 
@@ -221,7 +178,7 @@ cd auth-service
 ./mvnw test
 ```
 
-Each service has its own Maven wrapper and Dockerfile.
+Each runnable service has its own Maven wrapper and Dockerfile.
 
 ## Troubleshooting
 

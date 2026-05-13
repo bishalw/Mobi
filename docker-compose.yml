@@ -20,42 +20,6 @@ services:
       retries: 10
       start_period: 30s
 
-  discovery-service:
-    build:
-      context: ./discovery-service
-    image: scalablerest/discovery-service:local
-    container_name: scalablerest-discovery-service
-    ports:
-      - "8761:8761"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8761/actuator/health >/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 30s
-
-  config-server:
-    build:
-      context: ./config-server
-    image: scalablerest/config-server:local
-    container_name: scalablerest-config-server
-    ports:
-      - "8888:8888"
-    environment:
-      EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
-      CONFIG_REPO_LOCATION: file:/config-repo
-    volumes:
-      - ./config-repo:/config-repo:ro
-    depends_on:
-      discovery-service:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8888/actuator/health >/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 30s
-
   api-gateway:
     build:
       context: ./api-gateway
@@ -64,10 +28,12 @@ services:
     ports:
       - "8080:8080"
     environment:
-      CONFIG_SERVER_URL: http://config-server:8888
-      EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
+      AUTH_SERVICE_URL: http://auth-service:8082
+      PRODUCT_SERVICE_URL: http://product-service:8083
     depends_on:
-      config-server:
+      auth-service:
+        condition: service_healthy
+      product-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health >/dev/null || exit 1"]
@@ -84,8 +50,6 @@ services:
     ports:
       - "8082:8082"
     environment:
-      CONFIG_SERVER_URL: http://config-server:8888
-      EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
       AUTH_DB_URL: jdbc:mysql://mysql:3306/${AUTH_DB_NAME:-authdb}
       AUTH_DB_USERNAME: ${AUTH_DB_USERNAME:-auth_user}
       AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD}
@@ -95,8 +59,6 @@ services:
       JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-3600000}
     depends_on:
       mysql:
-        condition: service_healthy
-      config-server:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8082/actuator/health >/dev/null || exit 1"]
@@ -109,11 +71,10 @@ services:
     build:
       context: ./product-service
     image: scalablerest/product-service:local
+    container_name: scalablerest-product-service
     ports:
-      - "8083"
+      - "8083:8083"
     environment:
-      CONFIG_SERVER_URL: http://config-server:8888
-      EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
       PRODUCT_DB_URL: jdbc:mysql://mysql:3306/${PRODUCT_DB_NAME:-productdb}
       PRODUCT_DB_USERNAME: ${PRODUCT_DB_USERNAME:-product_user}
       PRODUCT_DB_PASSWORD: ${PRODUCT_DB_PASSWORD}
@@ -123,8 +84,6 @@ services:
       JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-3600000}
     depends_on:
       mysql:
-        condition: service_healthy
-      config-server:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8083/actuator/health >/dev/null || exit 1"]
