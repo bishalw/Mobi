@@ -28,16 +28,23 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final ProductClient productClient;
     private final InventoryClient inventoryClient;
+    private final OrderIdempotencyService idempotencyService;
 
-    public OrderServiceImpl(OrderRepository orderRepository, ProductClient productClient, InventoryClient inventoryClient) {
+    public OrderServiceImpl(OrderRepository orderRepository, ProductClient productClient, InventoryClient inventoryClient, OrderIdempotencyService idempotencyService) {
         this.orderRepository = orderRepository;
         this.productClient = productClient;
         this.inventoryClient = inventoryClient;
+        this.idempotencyService = idempotencyService;
     }
 
     @Override
     @Transactional
-    public OrderResponse createOrder(CreateOrderRequest request) {
+    public OrderResponse createOrder(CreateOrderRequest request, String idempotencyKey) {
+        var cachedResponse = idempotencyService.get(idempotencyKey);
+        if (cachedResponse.isPresent()) {
+            return cachedResponse.get();
+        }
+
         CustomerOrder order = new CustomerOrder();
         order.setUserId(request.getUserId());
         order.setStatus(OrderStatus.PENDING);
@@ -69,7 +76,9 @@ public class OrderServiceImpl implements OrderService {
                 reservedItems.add(itemRequest);
             }
             savedOrder.setStatus(OrderStatus.INVENTORY_RESERVED);
-            return mapToResponse(orderRepository.save(savedOrder));
+            OrderResponse response = mapToResponse(orderRepository.save(savedOrder));
+            idempotencyService.save(idempotencyKey, response);
+            return response;
         } catch (FeignException exp) {
             releaseReservedItems(reservedItems);
             savedOrder.setStatus(OrderStatus.CANCELLED);

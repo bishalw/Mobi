@@ -11,6 +11,7 @@ Spring Boot microservices demo using Spring Cloud Gateway, MySQL, explicit servi
 | `product-service` | `8083` | Product API service |
 | `inventory-service` | `8084` | Inventory and stock reservation service |
 | `order-service` | `8085` | Order creation and checkout orchestration service |
+| `redis` | `6379` | Redis for fast temporary state, starting with order idempotency keys |
 | `mysql` | internal `3306` | MySQL server with separate service-owned databases |
 
 Runtime flow:
@@ -64,6 +65,8 @@ ORDER_DB_NAME=orderdb
 ORDER_DB_USERNAME=order_user
 ORDER_DB_PASSWORD=replace-with-local-order-db-password
 
+ORDER_IDEMPOTENCY_TTL_SECONDS=86400
+
 JWT_SECRET=replace-with-at-least-32-character-secret
 JWT_EXPIRATION_MS=3600000
 ```
@@ -106,6 +109,12 @@ curl http://localhost:8082/actuator/health
 curl http://localhost:8083/actuator/health
 curl http://localhost:8084/actuator/health
 curl http://localhost:8085/actuator/health
+```
+
+Redis check:
+
+```bash
+docker compose --env-file .env.local exec redis redis-cli ping
 ```
 
 Gateway checks:
@@ -231,6 +240,8 @@ order-service
   -> inventory-service: reserve stock
   -> orderdb: save order as INVENTORY_RESERVED or CANCELLED
 ```
+
+Order creation supports an optional `Idempotency-Key` request header. Reusing the same key for a previously completed order returns the original order response instead of creating a duplicate order.
 
 ## Development
 

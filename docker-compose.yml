@@ -54,6 +54,18 @@ services:
       retries: 12
       start_period: 30s
 
+  redis:
+    image: redis:7.4-alpine
+    container_name: scalablerest-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
   auth-service:
     build:
       context: ./auth-service
@@ -142,6 +154,9 @@ services:
       ORDER_DB_PASSWORD: ${ORDER_DB_PASSWORD}
       ORDER_JPA_DDL_AUTO: update
       ORDER_JPA_SHOW_SQL: ${ORDER_JPA_SHOW_SQL:-false}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ORDER_IDEMPOTENCY_TTL_SECONDS: ${ORDER_IDEMPOTENCY_TTL_SECONDS:-86400}
       PRODUCT_SERVICE_URL: http://product-service:8083
       INVENTORY_SERVICE_URL: http://inventory-service:8084
       JWT_SECRET: ${JWT_SECRET}
@@ -152,6 +167,8 @@ services:
       product-service:
         condition: service_healthy
       inventory-service:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8085/actuator/health >/dev/null || exit 1"]
