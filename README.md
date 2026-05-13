@@ -10,6 +10,7 @@ Spring Boot microservices demo using Spring Cloud Gateway, MySQL, explicit servi
 | `auth-service` | `8082` | Authentication service |
 | `product-service` | `8083` | Product API service |
 | `inventory-service` | `8084` | Inventory and stock reservation service |
+| `order-service` | `8085` | Order creation and checkout orchestration service |
 | `mysql` | internal `3306` | MySQL server with separate service-owned databases |
 
 Runtime flow:
@@ -17,11 +18,11 @@ Runtime flow:
 ```text
 Client
   -> api-gateway
-  -> auth-service / product-service / inventory-service
+  -> auth-service / product-service / inventory-service / order-service
 
 api-gateway routes to services through environment-configured URLs.
 services load config from local Spring Boot properties and Docker Compose environment variables.
-auth-service, product-service, and inventory-service use separate MySQL databases.
+auth-service, product-service, inventory-service, and order-service use separate MySQL databases.
 ```
 
 ## Requirements
@@ -58,6 +59,10 @@ PRODUCT_DB_PASSWORD=replace-with-local-product-db-password
 INVENTORY_DB_NAME=inventorydb
 INVENTORY_DB_USERNAME=inventory_user
 INVENTORY_DB_PASSWORD=replace-with-local-inventory-db-password
+
+ORDER_DB_NAME=orderdb
+ORDER_DB_USERNAME=order_user
+ORDER_DB_PASSWORD=replace-with-local-order-db-password
 
 JWT_SECRET=replace-with-at-least-32-character-secret
 JWT_EXPIRATION_MS=3600000
@@ -100,6 +105,7 @@ curl http://localhost:8080/actuator/health
 curl http://localhost:8082/actuator/health
 curl http://localhost:8083/actuator/health
 curl http://localhost:8084/actuator/health
+curl http://localhost:8085/actuator/health
 ```
 
 Gateway checks:
@@ -108,6 +114,7 @@ Gateway checks:
 curl -i -X OPTIONS http://localhost:8080/auth/register
 curl -i -X OPTIONS http://localhost:8080/productapi/products
 curl -i -X OPTIONS http://localhost:8080/inventoryapi/products
+curl -i -X OPTIONS http://localhost:8080/orderapi/orders
 ```
 
 Expected behavior:
@@ -124,6 +131,7 @@ The gateway routes through explicit, environment-overridable service URLs:
 spring.cloud.gateway.server.webflux.routes[0].uri=${AUTH_SERVICE_URL:http://localhost:8082}
 spring.cloud.gateway.server.webflux.routes[1].uri=${PRODUCT_SERVICE_URL:http://localhost:8083}
 spring.cloud.gateway.server.webflux.routes[2].uri=${INVENTORY_SERVICE_URL:http://localhost:8084}
+spring.cloud.gateway.server.webflux.routes[3].uri=${ORDER_SERVICE_URL:http://localhost:8085}
 ```
 
 Docker Compose sets these to the internal Compose DNS names and container ports:
@@ -132,6 +140,7 @@ Docker Compose sets these to the internal Compose DNS names and container ports:
 AUTH_SERVICE_URL=http://auth-service:8082
 PRODUCT_SERVICE_URL=http://product-service:8083
 INVENTORY_SERVICE_URL=http://inventory-service:8084
+ORDER_SERVICE_URL=http://order-service:8085
 ```
 
 For future Kubernetes deployment, use the same style with Kubernetes Service DNS names.
@@ -153,7 +162,8 @@ For local Docker Compose, MySQL is one container with separate service-owned dat
 mysql
 ├── authdb     owned by auth_user
 ├── productdb  owned by product_user
-└── inventorydb owned by inventory_user
+├── inventorydb owned by inventory_user
+└── orderdb     owned by order_user
 ```
 
 The database setup is initialized by:
@@ -170,6 +180,7 @@ Docker Compose DNS provides stable service names for local development:
 http://auth-service:8082
 http://product-service:8083
 http://inventory-service:8084
+http://order-service:8085
 ```
 
 If a service is scaled in Docker Compose, Docker DNS may return different container IPs across lookups:
@@ -199,6 +210,27 @@ DELETE /productapi/products/{id}
 ```
 
 Product stock is intentionally not stored on the product record. Stock belongs to `inventory-service`.
+
+## Order API
+
+`order-service` owns order state and uses synchronous HTTP clients to validate products and reserve inventory:
+
+```text
+POST   /orderapi/orders
+GET    /orderapi/orders
+GET    /orderapi/orders/{id}
+GET    /orderapi/users/{userId}/orders
+POST   /orderapi/orders/{id}/cancel
+```
+
+Initial checkout flow:
+
+```text
+order-service
+  -> product-service: fetch active product and price snapshot
+  -> inventory-service: reserve stock
+  -> orderdb: save order as INVENTORY_RESERVED or CANCELLED
+```
 
 ## Development
 

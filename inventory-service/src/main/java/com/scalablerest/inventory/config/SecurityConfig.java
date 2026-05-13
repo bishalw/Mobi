@@ -26,6 +26,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/inventoryapi/products/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/inventoryapi/products").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/inventoryapi/products/*/reserve", "/inventoryapi/products/*/release", "/inventoryapi/products/*/deduct").authenticated()
                         .requestMatchers("/inventoryapi/**").hasAuthority("ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
