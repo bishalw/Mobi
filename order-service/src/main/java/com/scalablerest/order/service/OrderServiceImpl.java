@@ -11,6 +11,8 @@ import com.scalablerest.order.dto.ProductResponse;
 import com.scalablerest.order.entity.CustomerOrder;
 import com.scalablerest.order.entity.OrderItem;
 import com.scalablerest.order.enums.OrderStatus;
+import com.scalablerest.order.event.OrderEventPublisher;
+import com.scalablerest.order.event.OrderEventType;
 import com.scalablerest.order.exception.OrderCreationException;
 import com.scalablerest.order.exception.ResourceNotFoundException;
 import com.scalablerest.order.repository.OrderRepository;
@@ -29,12 +31,14 @@ public class OrderServiceImpl implements OrderService {
     private final ProductClient productClient;
     private final InventoryClient inventoryClient;
     private final OrderIdempotencyService idempotencyService;
+    private final OrderEventPublisher orderEventPublisher;
 
-    public OrderServiceImpl(OrderRepository orderRepository, ProductClient productClient, InventoryClient inventoryClient, OrderIdempotencyService idempotencyService) {
+    public OrderServiceImpl(OrderRepository orderRepository, ProductClient productClient, InventoryClient inventoryClient, OrderIdempotencyService idempotencyService, OrderEventPublisher orderEventPublisher) {
         this.orderRepository = orderRepository;
         this.productClient = productClient;
         this.inventoryClient = inventoryClient;
         this.idempotencyService = idempotencyService;
+        this.orderEventPublisher = orderEventPublisher;
     }
 
     @Override
@@ -76,13 +80,16 @@ public class OrderServiceImpl implements OrderService {
                 reservedItems.add(itemRequest);
             }
             savedOrder.setStatus(OrderStatus.INVENTORY_RESERVED);
-            OrderResponse response = mapToResponse(orderRepository.save(savedOrder));
+            savedOrder = orderRepository.save(savedOrder);
+            orderEventPublisher.publish(OrderEventType.ORDER_INVENTORY_RESERVED, savedOrder);
+            OrderResponse response = mapToResponse(savedOrder);
             idempotencyService.save(idempotencyKey, response);
             return response;
         } catch (FeignException exp) {
             releaseReservedItems(reservedItems);
             savedOrder.setStatus(OrderStatus.CANCELLED);
-            orderRepository.save(savedOrder);
+            savedOrder = orderRepository.save(savedOrder);
+            orderEventPublisher.publish(OrderEventType.ORDER_CANCELLED, savedOrder);
             throw new OrderCreationException("Unable to reserve inventory for order", exp);
         }
     }
@@ -112,7 +119,9 @@ public class OrderServiceImpl implements OrderService {
             }
         }
         order.setStatus(OrderStatus.CANCELLED);
-        return mapToResponse(orderRepository.save(order));
+        order = orderRepository.save(order);
+        orderEventPublisher.publish(OrderEventType.ORDER_CANCELLED, order);
+        return mapToResponse(order);
     }
 
     private void releaseReservedItems(List<CreateOrderItemRequest> reservedItems) {

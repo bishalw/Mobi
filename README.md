@@ -12,6 +12,7 @@ Spring Boot microservices demo using Spring Cloud Gateway, MySQL, explicit servi
 | `inventory-service` | `8084` | Inventory and stock reservation service |
 | `order-service` | `8085` | Order creation and checkout orchestration service |
 | `redis` | `6379` | Redis for fast temporary state, starting with order idempotency keys |
+| `kafka` | `9092` | Kafka broker for asynchronous domain events |
 | `mysql` | internal `3306` | MySQL server with separate service-owned databases |
 
 Runtime flow:
@@ -66,6 +67,7 @@ ORDER_DB_USERNAME=order_user
 ORDER_DB_PASSWORD=replace-with-local-order-db-password
 
 ORDER_IDEMPOTENCY_TTL_SECONDS=86400
+ORDER_EVENTS_TOPIC=order-events
 
 JWT_SECRET=replace-with-at-least-32-character-secret
 JWT_EXPIRATION_MS=3600000
@@ -115,6 +117,12 @@ Redis check:
 
 ```bash
 docker compose --env-file .env.local exec redis redis-cli ping
+```
+
+Kafka check:
+
+```bash
+docker compose --env-file .env.local exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
 ```
 
 Gateway checks:
@@ -242,6 +250,13 @@ order-service
 ```
 
 Order creation supports an optional `Idempotency-Key` request header. Reusing the same key for a previously completed order returns the original order response instead of creating a duplicate order.
+
+After order state changes, `order-service` publishes asynchronous domain events to Kafka topic `order-events`. Initial events include:
+
+```text
+ORDER_INVENTORY_RESERVED
+ORDER_CANCELLED
+```
 
 ## Development
 
