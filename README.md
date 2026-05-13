@@ -186,6 +186,20 @@ For production-grade scaling later, Kubernetes Services should handle traffic ac
 http://product-service:8083
 ```
 
+## Product API
+
+`product-service` uses REST-style product routes:
+
+```text
+GET    /productapi/products
+GET    /productapi/products/{id}
+POST   /productapi/products
+PUT    /productapi/products/{id}
+DELETE /productapi/products/{id}
+```
+
+Product stock is intentionally not stored on the product record. Stock belongs to `inventory-service`.
+
 ## Development
 
 The normal local runtime is Docker Compose.
