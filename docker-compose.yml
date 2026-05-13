@@ -10,6 +10,9 @@ services:
       PRODUCT_DB_NAME: ${PRODUCT_DB_NAME:-productdb}
       PRODUCT_DB_USERNAME: ${PRODUCT_DB_USERNAME:-product_user}
       PRODUCT_DB_PASSWORD: ${PRODUCT_DB_PASSWORD}
+      INVENTORY_DB_NAME: ${INVENTORY_DB_NAME:-inventorydb}
+      INVENTORY_DB_USERNAME: ${INVENTORY_DB_USERNAME:-inventory_user}
+      INVENTORY_DB_PASSWORD: ${INVENTORY_DB_PASSWORD}
     volumes:
       - mysql-data:/var/lib/mysql
       - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
@@ -30,10 +33,13 @@ services:
     environment:
       AUTH_SERVICE_URL: http://auth-service:8082
       PRODUCT_SERVICE_URL: http://product-service:8083
+      INVENTORY_SERVICE_URL: http://inventory-service:8084
     depends_on:
       auth-service:
         condition: service_healthy
       product-service:
+        condition: service_healthy
+      inventory-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health >/dev/null || exit 1"]
@@ -87,6 +93,31 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8083/actuator/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  inventory-service:
+    build:
+      context: ./inventory-service
+    image: scalablerest/inventory-service:local
+    container_name: scalablerest-inventory-service
+    ports:
+      - "8084:8084"
+    environment:
+      INVENTORY_DB_URL: jdbc:mysql://mysql:3306/${INVENTORY_DB_NAME:-inventorydb}
+      INVENTORY_DB_USERNAME: ${INVENTORY_DB_USERNAME:-inventory_user}
+      INVENTORY_DB_PASSWORD: ${INVENTORY_DB_PASSWORD}
+      INVENTORY_JPA_DDL_AUTO: update
+      INVENTORY_JPA_SHOW_SQL: ${INVENTORY_JPA_SHOW_SQL:-false}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-3600000}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8084/actuator/health >/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12

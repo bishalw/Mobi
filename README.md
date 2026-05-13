@@ -9,18 +9,19 @@ Spring Boot microservices demo using Spring Cloud Gateway, MySQL, explicit servi
 | `api-gateway` | `8080` | Gateway entry point for clients |
 | `auth-service` | `8082` | Authentication service |
 | `product-service` | `8083` | Product API service |
-| `mysql` | internal `3306` | MySQL server with separate auth/product databases |
+| `inventory-service` | `8084` | Inventory and stock reservation service |
+| `mysql` | internal `3306` | MySQL server with separate service-owned databases |
 
 Runtime flow:
 
 ```text
 Client
   -> api-gateway
-  -> auth-service / product-service
+  -> auth-service / product-service / inventory-service
 
 api-gateway routes to services through environment-configured URLs.
 services load config from local Spring Boot properties and Docker Compose environment variables.
-auth-service and product-service use separate MySQL databases.
+auth-service, product-service, and inventory-service use separate MySQL databases.
 ```
 
 ## Requirements
@@ -53,6 +54,10 @@ AUTH_DB_PASSWORD=replace-with-local-auth-db-password
 PRODUCT_DB_NAME=productdb
 PRODUCT_DB_USERNAME=product_user
 PRODUCT_DB_PASSWORD=replace-with-local-product-db-password
+
+INVENTORY_DB_NAME=inventorydb
+INVENTORY_DB_USERNAME=inventory_user
+INVENTORY_DB_PASSWORD=replace-with-local-inventory-db-password
 
 JWT_SECRET=replace-with-at-least-32-character-secret
 JWT_EXPIRATION_MS=3600000
@@ -94,6 +99,7 @@ Health checks:
 curl http://localhost:8080/actuator/health
 curl http://localhost:8082/actuator/health
 curl http://localhost:8083/actuator/health
+curl http://localhost:8084/actuator/health
 ```
 
 Gateway checks:
@@ -101,13 +107,14 @@ Gateway checks:
 ```bash
 curl -i -X OPTIONS http://localhost:8080/auth/register
 curl -i -X OPTIONS http://localhost:8080/productapi/products
+curl -i -X OPTIONS http://localhost:8080/inventoryapi/products
 ```
 
 Expected behavior:
 
 - Actuator health endpoints return `{"status":"UP"}`.
 - Auth route is reachable through the gateway.
-- Product route may return `403` without authentication because it is protected.
+- Product and inventory read routes are reachable through the gateway.
 
 ## Service routing
 
@@ -116,6 +123,7 @@ The gateway routes through explicit, environment-overridable service URLs:
 ```properties
 spring.cloud.gateway.server.webflux.routes[0].uri=${AUTH_SERVICE_URL:http://localhost:8082}
 spring.cloud.gateway.server.webflux.routes[1].uri=${PRODUCT_SERVICE_URL:http://localhost:8083}
+spring.cloud.gateway.server.webflux.routes[2].uri=${INVENTORY_SERVICE_URL:http://localhost:8084}
 ```
 
 Docker Compose sets these to the internal Compose DNS names and container ports:
@@ -123,6 +131,7 @@ Docker Compose sets these to the internal Compose DNS names and container ports:
 ```text
 AUTH_SERVICE_URL=http://auth-service:8082
 PRODUCT_SERVICE_URL=http://product-service:8083
+INVENTORY_SERVICE_URL=http://inventory-service:8084
 ```
 
 For future Kubernetes deployment, use the same style with Kubernetes Service DNS names.
@@ -143,7 +152,8 @@ For local Docker Compose, MySQL is one container with separate service-owned dat
 ```text
 mysql
 ├── authdb     owned by auth_user
-└── productdb  owned by product_user
+├── productdb  owned by product_user
+└── inventorydb owned by inventory_user
 ```
 
 The database setup is initialized by:
@@ -159,6 +169,7 @@ Docker Compose DNS provides stable service names for local development:
 ```text
 http://auth-service:8082
 http://product-service:8083
+http://inventory-service:8084
 ```
 
 If a service is scaled in Docker Compose, Docker DNS may return different container IPs across lookups:
