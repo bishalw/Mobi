@@ -161,6 +161,14 @@ http://auth-service:8082
 http://product-service:8083
 ```
 
+If a service is scaled in Docker Compose, Docker DNS may return different container IPs across lookups:
+
+```bash
+docker compose --env-file .env.local up --scale auth-service=3 -d
+```
+
+This is basic DNS round-robin, not production-grade load balancing. It is acceptable for local testing, but production scaling should be handled by Kubernetes Services or another platform-level load balancer.
+
 For production-grade scaling later, Kubernetes Services should handle traffic across replicas while the application keeps using service URLs such as:
 
 ```text
