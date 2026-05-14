@@ -207,5 +207,26 @@ services:
       retries: 12
       start_period: 30s
 
+  notification-service:
+    build:
+      context: ./notification-service
+    image: scalablerest/notification-service:local
+    container_name: scalablerest-notification-service
+    ports:
+      - "8086:8086"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      ORDER_EVENTS_TOPIC: ${ORDER_EVENTS_TOPIC:-order-events}
+      NOTIFICATION_CONSUMER_GROUP: ${NOTIFICATION_CONSUMER_GROUP:-notification-service}
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8086/actuator/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
 volumes:
   mysql-data:
