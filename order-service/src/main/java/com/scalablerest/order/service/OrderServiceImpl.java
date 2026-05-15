@@ -2,9 +2,10 @@ package com.scalablerest.order.service;
 
 import com.scalablerest.order.client.InventoryClient;
 import com.scalablerest.order.client.ProductClient;
+import com.scalablerest.order.dto.BatchReserveItemRequest;
+import com.scalablerest.order.dto.BatchReserveRequest;
 import com.scalablerest.order.dto.CreateOrderItemRequest;
 import com.scalablerest.order.dto.CreateOrderRequest;
-import com.scalablerest.order.dto.InventoryQuantityRequest;
 import com.scalablerest.order.dto.OrderItemResponse;
 import com.scalablerest.order.dto.OrderResponse;
 import com.scalablerest.order.dto.ProductResponse;
@@ -21,7 +22,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -73,12 +73,14 @@ public class OrderServiceImpl implements OrderService {
         order.setTotalAmount(total);
         CustomerOrder savedOrder = orderRepository.save(order);
 
-        List<CreateOrderItemRequest> reservedItems = new ArrayList<>();
+        List<BatchReserveItemRequest> reserveItems = request.getItems().stream()
+                .map(i -> new BatchReserveItemRequest(i.getProductId(), i.getQuantity()))
+                .toList();
+        BatchReserveRequest reserveRequest = new BatchReserveRequest(
+                savedOrder.getId().toString(), reserveItems);
+
         try {
-            for (CreateOrderItemRequest itemRequest : request.getItems()) {
-                inventoryClient.reserve(itemRequest.getProductId(), new InventoryQuantityRequest(itemRequest.getQuantity()));
-                reservedItems.add(itemRequest);
-            }
+            inventoryClient.batchReserve(reserveRequest);
             savedOrder.setStatus(OrderStatus.INVENTORY_RESERVED);
             savedOrder = orderRepository.save(savedOrder);
             orderEventPublisher.publish(OrderEventType.ORDER_INVENTORY_RESERVED, savedOrder);
@@ -86,7 +88,6 @@ public class OrderServiceImpl implements OrderService {
             idempotencyService.save(idempotencyKey, response);
             return response;
         } catch (FeignException exp) {
-            releaseReservedItems(reservedItems);
             savedOrder.setStatus(OrderStatus.CANCELLED);
             savedOrder = orderRepository.save(savedOrder);
             orderEventPublisher.publish(OrderEventType.ORDER_CANCELLED, savedOrder);
@@ -114,24 +115,16 @@ public class OrderServiceImpl implements OrderService {
     public OrderResponse cancelOrder(Long id) {
         CustomerOrder order = findOrderById(id);
         if (order.getStatus() == OrderStatus.INVENTORY_RESERVED) {
-            for (OrderItem item : order.getItems()) {
-                inventoryClient.release(item.getProductId(), new InventoryQuantityRequest(item.getQuantity()));
+            try {
+                inventoryClient.releaseReservation(order.getId().toString());
+            } catch (FeignException e) {
+                // Reaper will recover any stale reservation
             }
         }
         order.setStatus(OrderStatus.CANCELLED);
         order = orderRepository.save(order);
         orderEventPublisher.publish(OrderEventType.ORDER_CANCELLED, order);
         return mapToResponse(order);
-    }
-
-    private void releaseReservedItems(List<CreateOrderItemRequest> reservedItems) {
-        for (CreateOrderItemRequest itemRequest : reservedItems) {
-            try {
-                inventoryClient.release(itemRequest.getProductId(), new InventoryQuantityRequest(itemRequest.getQuantity()));
-            } catch (FeignException ignored) {
-                // Best-effort compensation. Kafka/Saga phase will make this more robust.
-            }
-        }
     }
 
     private CustomerOrder findOrderById(Long id) {

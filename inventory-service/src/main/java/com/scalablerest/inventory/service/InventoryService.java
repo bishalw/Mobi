@@ -1,5 +1,7 @@
 package com.scalablerest.inventory.service;
 
+import com.scalablerest.inventory.dto.BatchReserveRequest;
+import com.scalablerest.inventory.dto.BatchReserveResponse;
 import com.scalablerest.inventory.dto.CreateInventoryRequest;
 import com.scalablerest.inventory.dto.InventoryResponse;
 
@@ -18,4 +20,8 @@ public interface InventoryService {
     InventoryResponse release(Long productId, int quantity);
 
     InventoryResponse deduct(Long productId, int quantity);
+
+    BatchReserveResponse batchReserve(BatchReserveRequest request);
+
+    void releaseReservation(String reservationKey);
 }
