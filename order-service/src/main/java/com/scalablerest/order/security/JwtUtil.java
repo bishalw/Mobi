@@ -32,6 +32,10 @@ public class JwtUtil {
         return parseClaims(token).get("role", String.class);
     }
 
+    public Long extractUserId(String token) {
+        return parseClaims(token).get("userId", Long.class);
+    }
+
     private Claims parseClaims(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(signingKey)

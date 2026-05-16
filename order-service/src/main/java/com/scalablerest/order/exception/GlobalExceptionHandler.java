@@ -1,11 +1,13 @@
 package com.scalablerest.order.exception;
 
 import feign.FeignException;
+import feign.RetryableException;
 import com.scalablerest.order.exception.FeignErrorParser;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -51,6 +53,25 @@ public class GlobalExceptionHandler {
     public ErrorResponse handleFeignConflict(FeignException.Conflict exp, HttpServletRequest request) {
         return new ErrorResponse(LocalDateTime.now(), HttpStatus.CONFLICT.value(), "Conflict",
                 FeignErrorParser.extractMessage(exp, "Downstream service rejected the request"), request.getRequestURI(), null);
+    }
+
+    @ExceptionHandler(RetryableException.class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    public ErrorResponse handleFeignRetryable(RetryableException exp, HttpServletRequest request) {
+        return new ErrorResponse(LocalDateTime.now(), HttpStatus.SERVICE_UNAVAILABLE.value(), "Service Unavailable", "Downstream service is unavailable; retry later", request.getRequestURI(), null);
+    }
+
+    @ExceptionHandler(FeignException.class)
+    @ResponseStatus(HttpStatus.BAD_GATEWAY)
+    public ErrorResponse handleFeignException(FeignException exp, HttpServletRequest request) {
+        return new ErrorResponse(LocalDateTime.now(), HttpStatus.BAD_GATEWAY.value(), "Bad Gateway",
+                FeignErrorParser.extractMessage(exp, "Downstream service call failed"), request.getRequestURI(), null);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ErrorResponse handleAccessDenied(AccessDeniedException exp, HttpServletRequest request) {
+        return new ErrorResponse(LocalDateTime.now(), HttpStatus.FORBIDDEN.value(), "Forbidden", exp.getMessage(), request.getRequestURI(), null);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

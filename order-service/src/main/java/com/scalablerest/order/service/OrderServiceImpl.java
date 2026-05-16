@@ -33,18 +33,21 @@ public class OrderServiceImpl implements OrderService {
     private final InventoryClient inventoryClient;
     private final OrderIdempotencyService idempotencyService;
     private final OrderEventPublisher orderEventPublisher;
+    private final OrderAuthorizationService authorizationService;
 
-    public OrderServiceImpl(OrderRepository orderRepository, ProductClient productClient, InventoryClient inventoryClient, OrderIdempotencyService idempotencyService, OrderEventPublisher orderEventPublisher) {
+    public OrderServiceImpl(OrderRepository orderRepository, ProductClient productClient, InventoryClient inventoryClient, OrderIdempotencyService idempotencyService, OrderEventPublisher orderEventPublisher, OrderAuthorizationService authorizationService) {
         this.orderRepository = orderRepository;
         this.productClient = productClient;
         this.inventoryClient = inventoryClient;
         this.idempotencyService = idempotencyService;
         this.orderEventPublisher = orderEventPublisher;
+        this.authorizationService = authorizationService;
     }
 
     @Override
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request, String idempotencyKey) {
+        authorizationService.requireOwnerOrAdmin(request.getUserId());
         var cachedResponse = idempotencyService.get(idempotencyKey);
         if (cachedResponse.isPresent()) {
             return cachedResponse.get();
@@ -99,16 +102,20 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public List<OrderResponse> getAllOrders() {
+        authorizationService.requireAdmin();
         return orderRepository.findAll().stream().map(this::mapToResponse).toList();
     }
 
     @Override
     public OrderResponse getOrderById(Long id) {
-        return mapToResponse(findOrderById(id));
+        CustomerOrder order = findOrderById(id);
+        authorizationService.requireOwnerOrAdmin(order);
+        return mapToResponse(order);
     }
 
     @Override
     public List<OrderResponse> getOrdersByUserId(Long userId) {
+        authorizationService.requireOwnerOrAdmin(userId);
         return orderRepository.findByUserId(userId).stream().map(this::mapToResponse).toList();
     }
 
@@ -116,6 +123,10 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public OrderResponse cancelOrder(Long id) {
         CustomerOrder order = findOrderById(id);
+        authorizationService.requireOwnerOrAdmin(order);
+        if (order.getStatus() == OrderStatus.CONFIRMED) {
+            throw new OrderCreationException("Confirmed orders cannot be cancelled");
+        }
         if (order.getStatus() == OrderStatus.INVENTORY_RESERVED) {
             try {
                 inventoryClient.releaseReservation(order.getId().toString());
@@ -133,6 +144,10 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public OrderResponse confirmOrder(Long id) {
         CustomerOrder order = findOrderById(id);
+        authorizationService.requireOwnerOrAdmin(order);
+        if (order.getStatus() == OrderStatus.CONFIRMED) {
+            return mapToResponse(order);
+        }
         if (order.getStatus() != OrderStatus.INVENTORY_RESERVED) {
             throw new OrderCreationException("Order cannot be confirmed in status " + order.getStatus());
         }

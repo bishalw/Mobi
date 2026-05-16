@@ -1,9 +1,13 @@
 package com.scalablerest.order.event;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.scalablerest.order.entity.CustomerOrder;
 import com.scalablerest.order.entity.OrderItem;
+import com.scalablerest.order.outbox.OutboxEvent;
+import com.scalablerest.order.outbox.OutboxEventRepository;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -11,12 +15,14 @@ import java.util.List;
 @Component
 public class OrderEventPublisher {
 
-    private final KafkaTemplate<String, OrderEvent> kafkaTemplate;
+    private final OutboxEventRepository outboxEventRepository;
+    private final ObjectMapper objectMapper;
     private final String orderEventsTopic;
 
-    public OrderEventPublisher(KafkaTemplate<String, OrderEvent> kafkaTemplate,
+    public OrderEventPublisher(OutboxEventRepository outboxEventRepository,
                                @Value("${orders.kafka.topic}") String orderEventsTopic) {
-        this.kafkaTemplate = kafkaTemplate;
+        this.outboxEventRepository = outboxEventRepository;
+        this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
         this.orderEventsTopic = orderEventsTopic;
     }
 
@@ -30,7 +36,17 @@ public class OrderEventPublisher {
                 mapItems(order.getItems())
         );
 
-        kafkaTemplate.send(orderEventsTopic, String.valueOf(order.getId()), event);
+        try {
+            outboxEventRepository.save(new OutboxEvent(
+                    orderEventsTopic,
+                    String.valueOf(order.getId()),
+                    String.valueOf(order.getId()),
+                    eventType.name(),
+                    objectMapper.writeValueAsString(event)
+            ));
+        } catch (JsonProcessingException exp) {
+            throw new IllegalStateException("Unable to serialize order event", exp);
+        }
     }
 
     private List<OrderItemEvent> mapItems(List<OrderItem> items) {
