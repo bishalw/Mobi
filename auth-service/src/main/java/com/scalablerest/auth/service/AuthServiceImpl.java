@@ -2,6 +2,7 @@ package com.scalablerest.auth.service;
 
 import com.scalablerest.auth.dto.AuthResponse;
 import com.scalablerest.auth.dto.LoginRequest;
+import com.scalablerest.auth.dto.RegisterResponse;
 import com.scalablerest.auth.dto.RegisterRequest;
 import com.scalablerest.auth.entity.User;
 import com.scalablerest.auth.event.UserEventPublisher;
@@ -30,7 +31,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public void register(RegisterRequest request) {
+    public RegisterResponse register(RegisterRequest request) {
         if (userRepository.findByUsername(request.getUsername()).isPresent()) {
             throw new IllegalArgumentException("Username already exists");
         }
@@ -42,6 +43,7 @@ public class AuthServiceImpl implements AuthService {
 
         User savedUser = userRepository.save(user);
         userEventPublisher.publish(UserEventType.USER_REGISTERED, savedUser);
+        return new RegisterResponse(savedUser.getId(), savedUser.getUsername(), "USER REGISTERED");
     }
 
     @Override
@@ -53,7 +55,7 @@ public class AuthServiceImpl implements AuthService {
             throw new IllegalArgumentException("Invalid credentials");
         }
 
-        String token = jwtUtil.generateToken(user.getUsername(), user.getRole());
-        return new AuthResponse(token, user.getUsername(), user.getRole());
+        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
+        return new AuthResponse(token, user.getId(), user.getUsername(), user.getRole());
     }
 }

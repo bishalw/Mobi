@@ -1,24 +1,40 @@
 package com.scalablerest.auth.event;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.scalablerest.auth.entity.User;
+import com.scalablerest.auth.outbox.OutboxEvent;
+import com.scalablerest.auth.outbox.OutboxEventRepository;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
 public class UserEventPublisher {
 
-    private final KafkaTemplate<String, UserEvent> kafkaTemplate;
+    private final OutboxEventRepository outboxEventRepository;
+    private final ObjectMapper objectMapper;
     private final String userEventsTopic;
 
-    public UserEventPublisher(KafkaTemplate<String, UserEvent> kafkaTemplate,
+    public UserEventPublisher(OutboxEventRepository outboxEventRepository,
                               @Value("${users.kafka.topic}") String userEventsTopic) {
-        this.kafkaTemplate = kafkaTemplate;
+        this.outboxEventRepository = outboxEventRepository;
+        this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
         this.userEventsTopic = userEventsTopic;
     }
 
     public void publish(UserEventType eventType, User user) {
         UserEvent event = new UserEvent(eventType, user.getId(), user.getUsername());
-        kafkaTemplate.send(userEventsTopic, String.valueOf(user.getId()), event);
+        try {
+            outboxEventRepository.save(new OutboxEvent(
+                    userEventsTopic,
+                    String.valueOf(user.getId()),
+                    String.valueOf(user.getId()),
+                    eventType.name(),
+                    objectMapper.writeValueAsString(event)
+            ));
+        } catch (JsonProcessingException exp) {
+            throw new IllegalStateException("Unable to serialize user event", exp);
+        }
     }
 }

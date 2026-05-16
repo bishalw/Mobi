@@ -21,13 +21,18 @@ public class JwtUtil {
         this.expirationMs = expirationMs;
     }
 
-    public String generateToken(String username, String role) {
+    public String generateToken(Long userId, String username, String role) {
         return Jwts.builder()
                 .setSubject(username)
+                .claim("userId", userId)
                 .claim("role", role)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + expirationMs))
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
+    }
+
+    public String generateToken(String username, String role) {
+        return generateToken(null, username, role);
     }
 }
