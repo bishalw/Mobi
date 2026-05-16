@@ -9,6 +9,7 @@ import com.scalablerest.inventory.entity.InventoryItem;
 import com.scalablerest.inventory.entity.Reservation;
 import com.scalablerest.inventory.entity.ReservationItem;
 import com.scalablerest.inventory.entity.ReservationStatus;
+import com.scalablerest.inventory.exception.IllegalReservationStateException;
 import com.scalablerest.inventory.exception.InsufficientInventoryException;
 import com.scalablerest.inventory.exception.ResourceNotFoundException;
 import com.scalablerest.inventory.repository.InventoryRepository;
@@ -159,6 +160,42 @@ public class InventoryServiceImpl implements InventoryService {
         reservation.setReleasedAt(LocalDateTime.now());
         reservationRepository.save(reservation);
         log.info("Released reservation {} ({} items)", reservationKey, reservation.getItems().size());
+    }
+
+    @Override
+    @Transactional
+    public void confirmReservation(String reservationKey) {
+        Reservation reservation = reservationRepository.findByReservationKey(reservationKey)
+                .orElseThrow(() -> new ResourceNotFoundException("Reservation not found: " + reservationKey));
+
+        switch (reservation.getStatus()) {
+            case CONFIRMED -> { return; }
+            case RELEASED -> throw new IllegalReservationStateException(
+                    "Cannot confirm reservation " + reservationKey + ": already RELEASED");
+            case EXPIRED -> throw new IllegalReservationStateException(
+                    "Cannot confirm reservation " + reservationKey + ": already EXPIRED");
+            default -> { /* ACTIVE — proceed */ }
+        }
+
+        List<Long> productIds = reservation.getItems().stream()
+                .map(ReservationItem::getProductId)
+                .toList();
+        Map<Long, InventoryItem> itemsByProductId = inventoryRepository.findByProductIdInWithLock(productIds)
+                .stream()
+                .collect(Collectors.toMap(InventoryItem::getProductId, Function.identity()));
+
+        for (ReservationItem line : reservation.getItems()) {
+            InventoryItem item = itemsByProductId.get(line.getProductId());
+            if (item != null) {
+                item.setReservedQuantity(item.getReservedQuantity() - line.getQuantity());
+                inventoryRepository.save(item);
+            }
+        }
+
+        reservation.setStatus(ReservationStatus.CONFIRMED);
+        reservation.setConfirmedAt(LocalDateTime.now());
+        reservationRepository.save(reservation);
+        log.info("Confirmed reservation {} ({} items)", reservationKey, reservation.getItems().size());
     }
 
     private InventoryItem findByProductId(Long productId) {

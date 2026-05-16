@@ -1,5 +1,6 @@
 package com.scalablerest.inventory.exception;
 
+import com.scalablerest.inventory.exception.IllegalReservationStateException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -31,6 +32,12 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorResponse handleResourceNotFound(ResourceNotFoundException exp, HttpServletRequest request) {
         return new ErrorResponse(LocalDateTime.now(), HttpStatus.NOT_FOUND.value(), "Not Found", exp.getMessage(), request.getRequestURI(), null);
+    }
+
+    @ExceptionHandler(IllegalReservationStateException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorResponse handleIllegalReservationState(IllegalReservationStateException exp, HttpServletRequest request) {
+        return new ErrorResponse(LocalDateTime.now(), HttpStatus.CONFLICT.value(), "Conflict", exp.getMessage(), request.getRequestURI(), null);
     }
 
     @ExceptionHandler(InsufficientInventoryException.class)

@@ -69,4 +69,10 @@ public class InventoryController {
     public void releaseReservation(@PathVariable String reservationKey) {
         inventoryService.releaseReservation(reservationKey);
     }
+
+    @PostMapping("/reservations/{reservationKey}/confirm")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void confirmReservation(@PathVariable String reservationKey) {
+        inventoryService.confirmReservation(reservationKey);
+    }
 }

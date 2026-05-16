@@ -28,7 +28,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/inventoryapi/products/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/inventoryapi/products").authenticated()
                         .requestMatchers(HttpMethod.POST, "/inventoryapi/products/*/reserve", "/inventoryapi/products/*/release", "/inventoryapi/products/*/deduct").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/inventoryapi/reservations", "/inventoryapi/reservations/*/release").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/inventoryapi/reservations", "/inventoryapi/reservations/*/release", "/inventoryapi/reservations/*/confirm").authenticated()
                         .requestMatchers("/inventoryapi/**").hasAuthority("ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);

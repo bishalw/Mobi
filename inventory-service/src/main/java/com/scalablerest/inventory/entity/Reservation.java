@@ -38,6 +38,9 @@ public class Reservation {
     @Column
     private LocalDateTime releasedAt;
 
+    @Column
+    private LocalDateTime confirmedAt;
+
     @OneToMany(mappedBy = "reservation", cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
     private List<ReservationItem> items = new ArrayList<>();
 
@@ -85,6 +88,14 @@ public class Reservation {
 
     public void setReleasedAt(LocalDateTime releasedAt) {
         this.releasedAt = releasedAt;
+    }
+
+    public LocalDateTime getConfirmedAt() {
+        return confirmedAt;
+    }
+
+    public void setConfirmedAt(LocalDateTime confirmedAt) {
+        this.confirmedAt = confirmedAt;
     }
 
     public List<ReservationItem> getItems() {

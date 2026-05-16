@@ -24,4 +24,6 @@ public interface InventoryService {
     BatchReserveResponse batchReserve(BatchReserveRequest request);
 
     void releaseReservation(String reservationKey);
+
+    void confirmReservation(String reservationKey);
 }
