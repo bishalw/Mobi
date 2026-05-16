@@ -1,9 +1,11 @@
 package com.scalablerest.product.config;
 
 import com.scalablerest.product.security.JwtFilter;
+import com.scalablerest.product.security.SecurityErrorResponseWriter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -26,9 +28,14 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/productapi/products/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/productapi/products").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/productapi/products").hasAuthority("ADMIN")
                         .requestMatchers("/productapi/**").hasAuthority("ADMIN")
                         .anyRequest().authenticated())
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint((request, response, exp) -> SecurityErrorResponseWriter.write(
+                                request, response, HttpStatus.UNAUTHORIZED.value(), "Unauthorized", "Authentication is required"))
+                        .accessDeniedHandler((request, response, exp) -> SecurityErrorResponseWriter.write(
+                                request, response, HttpStatus.FORBIDDEN.value(), "Forbidden", exp.getMessage())))
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
