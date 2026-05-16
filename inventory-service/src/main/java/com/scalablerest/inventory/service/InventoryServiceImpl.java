@@ -186,10 +186,22 @@ public class InventoryServiceImpl implements InventoryService {
 
         for (ReservationItem line : reservation.getItems()) {
             InventoryItem item = itemsByProductId.get(line.getProductId());
-            if (item != null) {
-                item.setReservedQuantity(item.getReservedQuantity() - line.getQuantity());
-                inventoryRepository.save(item);
+            if (item == null) {
+                throw new IllegalReservationStateException(
+                        "Cannot confirm reservation " + reservationKey + ": inventory missing for product " + line.getProductId());
             }
+            if (item.getReservedQuantity() < line.getQuantity()) {
+                throw new IllegalReservationStateException(
+                        "Cannot confirm reservation " + reservationKey + ": reserved quantity for product "
+                        + line.getProductId() + " is " + item.getReservedQuantity()
+                        + " but reservation requires " + line.getQuantity());
+            }
+        }
+
+        for (ReservationItem line : reservation.getItems()) {
+            InventoryItem item = itemsByProductId.get(line.getProductId());
+            item.setReservedQuantity(item.getReservedQuantity() - line.getQuantity());
+            inventoryRepository.save(item);
         }
 
         reservation.setStatus(ReservationStatus.CONFIRMED);

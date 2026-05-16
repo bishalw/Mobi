@@ -29,6 +29,7 @@ public class InventoryController {
     }
 
     @PostMapping("/products")
+    @ResponseStatus(HttpStatus.CREATED)
     public InventoryResponse createInventory(@Valid @RequestBody CreateInventoryRequest request) {
         return inventoryService.createInventory(request);
     }
