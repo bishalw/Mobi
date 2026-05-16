@@ -68,9 +68,15 @@ ORDER_DB_PASSWORD=replace-with-local-order-db-password
 
 ORDER_IDEMPOTENCY_TTL_SECONDS=86400
 ORDER_EVENTS_TOPIC=order-events
+USER_EVENTS_TOPIC=user-events
+INTERNAL_SERVICE_SECRET=local-internal-secret
 
 JWT_SECRET=replace-with-at-least-32-character-secret
 JWT_EXPIRATION_MS=3600000
+
+ADMIN_BOOTSTRAP_ENABLED=true
+ADMIN_BOOTSTRAP_USERNAME=admin
+ADMIN_BOOTSTRAP_PASSWORD=replace-with-local-admin-password
 ```
 
 `.env.local` is ignored by git and should never be committed.
@@ -125,6 +131,13 @@ Kafka check:
 docker compose --env-file .env.local exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
 ```
 
+End-to-end smoke check:
+
+```bash
+./scripts/smoke.sh
+docker compose --env-file .env.local logs --tail=200 notification-service
+```
+
 Gateway checks:
 
 ```bash
@@ -139,6 +152,7 @@ Expected behavior:
 - Actuator health endpoints return `{"status":"UP"}`.
 - Auth route is reachable through the gateway.
 - Product and inventory read routes are reachable through the gateway.
+- The smoke script registers a user, seeds product/inventory as the local admin, creates/confirms/cancels orders, and notification logs show welcome/order events.
 
 ## Service routing
 
@@ -172,6 +186,8 @@ Secrets and environment-specific values are injected through Docker Compose:
 spring.datasource.password=${AUTH_DB_PASSWORD}
 jwt.secret=${JWT_SECRET}
 ```
+
+For local Docker smoke runs, `auth-service` can bootstrap one admin user from `ADMIN_BOOTSTRAP_*` variables. The service default is disabled; `docker-compose.yml` enables it with local defaults so the smoke script can seed products and inventory.
 
 For local Docker Compose, MySQL is one container with separate service-owned databases and users:
 
@@ -227,6 +243,7 @@ DELETE /productapi/products/{id}
 ```
 
 Product stock is intentionally not stored on the product record. Stock belongs to `inventory-service`.
+Product mutations require an `ADMIN` token; product reads remain public.
 
 ## Order API
 
@@ -238,6 +255,7 @@ GET    /orderapi/orders
 GET    /orderapi/orders/{id}
 GET    /orderapi/users/{userId}/orders
 POST   /orderapi/orders/{id}/cancel
+POST   /orderapi/orders/{id}/confirm
 ```
 
 Initial checkout flow:
@@ -250,11 +268,14 @@ order-service
 ```
 
 Order creation supports an optional `Idempotency-Key` request header. Reusing the same key for a previously completed order returns the original order response instead of creating a duplicate order.
+Order reads and commands are restricted to the order owner or an `ADMIN`; listing all orders is admin-only.
+Order confirmation is idempotent after an order reaches `CONFIRMED`.
 
-After order state changes, `order-service` publishes asynchronous domain events to Kafka topic `order-events`. Initial events include:
+After order state changes, `order-service` writes asynchronous domain events to an outbox table and a scheduled publisher forwards them to Kafka topic `order-events`. Initial events include:
 
 ```text
 ORDER_INVENTORY_RESERVED
+ORDER_CONFIRMED
 ORDER_CANCELLED
 ```
 

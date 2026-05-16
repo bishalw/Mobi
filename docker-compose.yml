@@ -107,6 +107,9 @@ services:
       AUTH_JPA_SHOW_SQL: ${AUTH_JPA_SHOW_SQL:-false}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-3600000}
+      ADMIN_BOOTSTRAP_ENABLED: ${ADMIN_BOOTSTRAP_ENABLED:-true}
+      ADMIN_BOOTSTRAP_USERNAME: ${ADMIN_BOOTSTRAP_USERNAME:-admin}
+      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:-adminpass}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       USER_EVENTS_TOPIC: ${USER_EVENTS_TOPIC:-user-events}
     depends_on:
@@ -161,6 +164,7 @@ services:
       INVENTORY_JPA_SHOW_SQL: ${INVENTORY_JPA_SHOW_SQL:-false}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-3600000}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-local-internal-secret}
     depends_on:
       mysql:
         condition: service_healthy
@@ -191,6 +195,7 @@ services:
       ORDER_EVENTS_TOPIC: ${ORDER_EVENTS_TOPIC:-order-events}
       PRODUCT_SERVICE_URL: http://product-service:8083
       INVENTORY_SERVICE_URL: http://inventory-service:8084
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-local-internal-secret}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-3600000}
     depends_on:

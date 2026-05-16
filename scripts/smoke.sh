@@ -29,10 +29,11 @@ extract_token() {
 
 # ── Register ──────────────────────────────────────────────────────────────────
 UNIQUE="smoke_$(date +%s)"
+SKU="SMOKE-$UNIQUE"
 REG_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE/auth/register" \
   -H "Content-Type: application/json" \
   -d "{\"username\":\"$UNIQUE\",\"password\":\"Password1!\"}")
-check_status "register new user" "200" "$REG_STATUS"
+check_status "register new user" "201" "$REG_STATUS"
 
 # Duplicate register must be rejected
 DUP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE/auth/register" \
@@ -47,7 +48,9 @@ LOGIN_RESP=$(curl -s -X POST "$BASE/auth/login" \
   -d "{\"username\":\"$UNIQUE\",\"password\":\"Password1!\"}")
 TOKEN=$(extract_token "$LOGIN_RESP")
 [[ -n "$TOKEN" ]] || fail "login did not return a token"
-pass "login (got JWT)"
+USER_ID=$(extract_json "userId" "$LOGIN_RESP")
+[[ -n "$USER_ID" ]] || fail "login did not return a userId"
+pass "login (got JWT for user $USER_ID)"
 
 AUTH="Authorization: Bearer $TOKEN"
 
@@ -67,7 +70,7 @@ PRODUCT_ID="${SMOKE_PRODUCT_ID:-1}"
 if [[ -n "$ADMIN_TOKEN" ]]; then
   PROD_RESP=$(curl -s -X POST "$BASE/productapi/products" \
     -H "Content-Type: application/json" -H "$ADMIN_AUTH" \
-    -d '{"name":"Smoke Widget","price":9.99,"active":true}' || true)
+    -d "{\"sku\":\"$SKU\",\"name\":\"Smoke Widget\",\"description\":\"Smoke test product\",\"price\":9.99,\"active\":true}" || true)
   NEW_PROD=$(extract_json "id" "$PROD_RESP")
   [[ -n "$NEW_PROD" ]] && PRODUCT_ID="$NEW_PROD"
 
@@ -76,8 +79,6 @@ if [[ -n "$ADMIN_TOKEN" ]]; then
     -d "{\"productId\":$PRODUCT_ID,\"availableQuantity\":20,\"warehouseLocation\":\"A1\"}" || true
   pass "seeded product $PRODUCT_ID with 20 units"
 fi
-
-USER_ID=1
 
 # ── Place valid order ─────────────────────────────────────────────────────────
 IDEM_KEY="smoke-order-$(date +%s)"
