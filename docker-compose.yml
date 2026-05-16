@@ -107,8 +107,12 @@ services:
       AUTH_JPA_SHOW_SQL: ${AUTH_JPA_SHOW_SQL:-false}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-3600000}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      USER_EVENTS_TOPIC: ${USER_EVENTS_TOPIC:-user-events}
     depends_on:
       mysql:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8082/actuator/health >/dev/null || exit 1"]
@@ -217,6 +221,7 @@ services:
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       ORDER_EVENTS_TOPIC: ${ORDER_EVENTS_TOPIC:-order-events}
+      USER_EVENTS_TOPIC: ${USER_EVENTS_TOPIC:-user-events}
       NOTIFICATION_CONSUMER_GROUP: ${NOTIFICATION_CONSUMER_GROUP:-notification-service}
     depends_on:
       kafka:
