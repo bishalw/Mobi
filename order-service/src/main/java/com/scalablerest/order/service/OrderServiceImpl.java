@@ -14,6 +14,7 @@ import com.scalablerest.order.entity.OrderItem;
 import com.scalablerest.order.enums.OrderStatus;
 import com.scalablerest.order.event.OrderEventPublisher;
 import com.scalablerest.order.event.OrderEventType;
+import com.scalablerest.order.exception.FeignErrorParser;
 import com.scalablerest.order.exception.OrderCreationException;
 import com.scalablerest.order.exception.ResourceNotFoundException;
 import com.scalablerest.order.repository.OrderRepository;
@@ -91,7 +92,8 @@ public class OrderServiceImpl implements OrderService {
             savedOrder.setStatus(OrderStatus.CANCELLED);
             savedOrder = orderRepository.save(savedOrder);
             orderEventPublisher.publish(OrderEventType.ORDER_CANCELLED, savedOrder);
-            throw new OrderCreationException("Unable to reserve inventory for order", exp);
+            throw new OrderCreationException(
+                    FeignErrorParser.extractMessage(exp, "Unable to reserve inventory for order"), exp);
         }
     }
 
@@ -124,6 +126,26 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(OrderStatus.CANCELLED);
         order = orderRepository.save(order);
         orderEventPublisher.publish(OrderEventType.ORDER_CANCELLED, order);
+        return mapToResponse(order);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse confirmOrder(Long id) {
+        CustomerOrder order = findOrderById(id);
+        if (order.getStatus() != OrderStatus.INVENTORY_RESERVED) {
+            throw new OrderCreationException("Order cannot be confirmed in status " + order.getStatus());
+        }
+        // Integration point for a future payment-success handler; currently called manually / for testing.
+        try {
+            inventoryClient.confirmReservation(id.toString());
+        } catch (FeignException exp) {
+            throw new OrderCreationException(
+                    FeignErrorParser.extractMessage(exp, "Unable to confirm inventory reservation for order"), exp);
+        }
+        order.setStatus(OrderStatus.CONFIRMED);
+        order = orderRepository.save(order);
+        orderEventPublisher.publish(OrderEventType.ORDER_CONFIRMED, order);
         return mapToResponse(order);
     }
 

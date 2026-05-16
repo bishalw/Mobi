@@ -14,4 +14,7 @@ public interface InventoryClient {
 
     @PostMapping("/inventoryapi/reservations/{reservationKey}/release")
     void releaseReservation(@PathVariable String reservationKey);
+
+    @PostMapping("/inventoryapi/reservations/{reservationKey}/confirm")
+    void confirmReservation(@PathVariable String reservationKey);
 }

@@ -16,4 +16,6 @@ public interface OrderService {
     List<OrderResponse> getOrdersByUserId(Long userId);
 
     OrderResponse cancelOrder(Long id);
+
+    OrderResponse confirmOrder(Long id);
 }

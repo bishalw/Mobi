@@ -1,6 +1,7 @@
 package com.scalablerest.order.exception;
 
 import feign.FeignException;
+import com.scalablerest.order.exception.FeignErrorParser;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -48,7 +49,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(FeignException.Conflict.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorResponse handleFeignConflict(FeignException.Conflict exp, HttpServletRequest request) {
-        return new ErrorResponse(LocalDateTime.now(), HttpStatus.CONFLICT.value(), "Conflict", "Downstream service rejected the request", request.getRequestURI(), null);
+        return new ErrorResponse(LocalDateTime.now(), HttpStatus.CONFLICT.value(), "Conflict",
+                FeignErrorParser.extractMessage(exp, "Downstream service rejected the request"), request.getRequestURI(), null);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
