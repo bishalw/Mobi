@@ -27,6 +27,9 @@ public class OrderEventListener {
         OrderEventType type = event.getEventType();
         switch (type) {
             case ORDER_INVENTORY_RESERVED -> log.info(
+                    "Sending order placed notification for order {} to user {}",
+                    event.getOrderId(), event.getUserId());
+            case ORDER_CONFIRMED -> log.info(
                     "Sending order confirmation notification for order {} to user {}",
                     event.getOrderId(), event.getUserId());
             case ORDER_CANCELLED -> log.info(
