@@ -3,11 +3,8 @@ package com.scalablerest.auth.controller;
 import com.scalablerest.auth.dto.AuthResponse;
 import com.scalablerest.auth.dto.LoginRequest;
 import com.scalablerest.auth.dto.RegisterRequest;
-import com.scalablerest.auth.entity.User;
-import com.scalablerest.auth.repository.UserRepository;
-import com.scalablerest.auth.security.JwtUtil;
+import com.scalablerest.auth.service.AuthService;
 import jakarta.validation.Valid;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,41 +14,20 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/auth")
 public class AuthController {
 
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final JwtUtil jwtUtil;
+    private final AuthService authService;
 
-    public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
-        this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.jwtUtil = jwtUtil;
+    public AuthController(AuthService authService) {
+        this.authService = authService;
     }
 
     @PostMapping("/register")
     public String registerUser(@Valid @RequestBody RegisterRequest request) {
-        if (userRepository.findByUsername(request.getUsername()).isPresent()) {
-            throw new IllegalArgumentException("Username already exists");
-        }
-
-        User user = new User();
-        user.setUsername(request.getUsername());
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setRole("USER");
-
-        userRepository.save(user);
+        authService.register(request);
         return "USER REGISTERED!";
     }
 
     @PostMapping("/login")
     public AuthResponse loginUser(@Valid @RequestBody LoginRequest request) {
-        User user = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new IllegalArgumentException("Invalid credentials"));
-
-        if (passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            String token = jwtUtil.generateToken(user.getUsername(), user.getRole());
-            return new AuthResponse(token, user.getUsername(), user.getRole());
-        }
-
-        throw new IllegalArgumentException("Invalid credentials");
+        return authService.login(request);
     }
 }
