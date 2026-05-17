@@ -65,3 +65,47 @@ kubectl apply -f k8s/ingress/api-gateway-ingress.yaml
 Do not commit real secret values.
 
 Copy `k8s/base/secrets.example.yaml` to a local-only file or create the secret directly with `kubectl`.
+
+## Dependencies
+
+The local cluster uses Helm for infrastructure dependencies. The release names below are intentional because the app ConfigMap points to their Kubernetes Service names:
+
+```text
+mysql
+redis
+kafka
+```
+
+Install MySQL:
+
+```bash
+kubectl apply -f k8s/infra/mysql/initdb-configmap.yaml
+helm upgrade --install mysql bitnami/mysql \
+  --namespace scalablerest \
+  --values k8s/infra/mysql/values.yaml \
+  --set auth.rootPassword='<local-root-password>'
+```
+
+Install Redis:
+
+```bash
+helm upgrade --install redis bitnami/redis \
+  --namespace scalablerest \
+  --values k8s/infra/redis/values.yaml
+```
+
+Install Kafka:
+
+```bash
+helm upgrade --install kafka bitnami/kafka \
+  --namespace scalablerest \
+  --values k8s/infra/kafka/values.yaml
+```
+
+Expected in-cluster dependency endpoints:
+
+```text
+jdbc:mysql://mysql:3306/authdb
+redis-master:6379
+kafka:9092
+```
