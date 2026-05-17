@@ -9,9 +9,9 @@ ingress -> api-gateway -> internal Kubernetes Services
 The app chart should remain the main deployment surface for both local and AWS:
 
 ```bash
-helm upgrade --install scalablerest helm/scalablerest \
-  --namespace scalablerest \
-  --values helm/scalablerest/values-aws.yaml
+helm upgrade --install mobi helm/mobi \
+  --namespace mobi \
+  --values helm/mobi/values-aws.yaml
 ```
 
 ## AWS target mapping
@@ -31,15 +31,15 @@ helm upgrade --install scalablerest helm/scalablerest \
 Build each service image, tag it with an immutable version such as a Git SHA, and push it to ECR:
 
 ```text
-<aws-account-id>.dkr.ecr.<region>.amazonaws.com/scalablerest/api-gateway:<git-sha>
-<aws-account-id>.dkr.ecr.<region>.amazonaws.com/scalablerest/auth-service:<git-sha>
-<aws-account-id>.dkr.ecr.<region>.amazonaws.com/scalablerest/product-service:<git-sha>
-<aws-account-id>.dkr.ecr.<region>.amazonaws.com/scalablerest/inventory-service:<git-sha>
-<aws-account-id>.dkr.ecr.<region>.amazonaws.com/scalablerest/order-service:<git-sha>
-<aws-account-id>.dkr.ecr.<region>.amazonaws.com/scalablerest/notification-service:<git-sha>
+<aws-account-id>.dkr.ecr.<region>.amazonaws.com/mobi/api-gateway:<git-sha>
+<aws-account-id>.dkr.ecr.<region>.amazonaws.com/mobi/auth-service:<git-sha>
+<aws-account-id>.dkr.ecr.<region>.amazonaws.com/mobi/product-service:<git-sha>
+<aws-account-id>.dkr.ecr.<region>.amazonaws.com/mobi/inventory-service:<git-sha>
+<aws-account-id>.dkr.ecr.<region>.amazonaws.com/mobi/order-service:<git-sha>
+<aws-account-id>.dkr.ecr.<region>.amazonaws.com/mobi/notification-service:<git-sha>
 ```
 
-Then set `image.tag` in `helm/scalablerest/values-aws.yaml`.
+Then set `image.tag` in `helm/mobi/values-aws.yaml`.
 
 ## Config and secrets
 
@@ -54,7 +54,7 @@ REDIS_HOST
 KAFKA_BOOTSTRAP_SERVERS
 ```
 
-Sensitive values should stay in a Kubernetes Secret named `scalablerest-secrets`:
+Sensitive values should stay in a Kubernetes Secret named `mobi-secrets`:
 
 ```text
 AUTH_DB_PASSWORD

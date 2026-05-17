@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CLUSTER_NAME="${KIND_CLUSTER_NAME:-scalablerest}"
+CLUSTER_NAME="${KIND_CLUSTER_NAME:-mobi}"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -14,12 +14,12 @@ require_cmd docker
 require_cmd kind
 
 images=(
-  scalablerest/api-gateway:local
-  scalablerest/auth-service:local
-  scalablerest/product-service:local
-  scalablerest/inventory-service:local
-  scalablerest/order-service:local
-  scalablerest/notification-service:local
+  mobi/api-gateway:local
+  mobi/auth-service:local
+  mobi/product-service:local
+  mobi/inventory-service:local
+  mobi/order-service:local
+  mobi/notification-service:local
 )
 
 contexts=(

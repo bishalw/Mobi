@@ -1,0 +1,61 @@
+package com.mobi.order.dto;
+
+import java.math.BigDecimal;
+
+public class OrderItemResponse {
+
+    private Long id;
+    private Long productId;
+    private String productNameSnapshot;
+    private BigDecimal unitPriceSnapshot;
+    private Integer quantity;
+    private BigDecimal lineTotal;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public Long getProductId() {
+        return productId;
+    }
+
+    public void setProductId(Long productId) {
+        this.productId = productId;
+    }
+
+    public String getProductNameSnapshot() {
+        return productNameSnapshot;
+    }
+
+    public void setProductNameSnapshot(String productNameSnapshot) {
+        this.productNameSnapshot = productNameSnapshot;
+    }
+
+    public BigDecimal getUnitPriceSnapshot() {
+        return unitPriceSnapshot;
+    }
+
+    public void setUnitPriceSnapshot(BigDecimal unitPriceSnapshot) {
+        this.unitPriceSnapshot = unitPriceSnapshot;
+    }
+
+    public Integer getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(Integer quantity) {
+        this.quantity = quantity;
+    }
+
+    public BigDecimal getLineTotal() {
+        return lineTotal;
+    }
+
+    public void setLineTotal(BigDecimal lineTotal) {
+        this.lineTotal = lineTotal;
+    }
+}

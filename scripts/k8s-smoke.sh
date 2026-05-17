@@ -18,5 +18,5 @@ export SMOKE_ADMIN_PASS="${SMOKE_ADMIN_PASS:-${ADMIN_BOOTSTRAP_PASSWORD:-adminpa
 
 echo ""
 echo "Recent notification-service logs:"
-kubectl logs deployment/notification-service --namespace "${K8S_NAMESPACE:-scalablerest}" --tail=120
+kubectl logs deployment/notification-service --namespace "${K8S_NAMESPACE:-mobi}" --tail=120
 

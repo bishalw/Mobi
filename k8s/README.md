@@ -1,11 +1,11 @@
 # Local Kubernetes With kind
 
-This directory contains the local Kubernetes runtime for ScalableRest.
+This directory contains the local Kubernetes runtime for Mobi.
 
 The goal is to run the local stack through Kubernetes primitives:
 
 ```text
-localhost / scalablerest.local
+localhost / mobi.local
   -> ingress-nginx
   -> api-gateway
   -> auth-service / product-service / inventory-service / order-service
@@ -49,7 +49,7 @@ The ingress can be reached through `localhost` once the kind cluster maps host p
 For a named local host, add this entry to `/etc/hosts`:
 
 ```text
-127.0.0.1 scalablerest.local
+127.0.0.1 mobi.local
 ```
 
 ## Ingress
@@ -63,12 +63,12 @@ helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --values k8s/infra/ingress-nginx/values.yaml
 ```
 
-The application ingress routes public paths to `api-gateway`; downstream service routing stays inside the gateway. The app ingress is rendered by the `helm/scalablerest` chart.
+The application ingress routes public paths to `api-gateway`; downstream service routing stays inside the gateway. The app ingress is rendered by the `helm/mobi` chart.
 
 ```bash
-helm upgrade --install scalablerest helm/scalablerest \
-  --namespace scalablerest \
-  --values helm/scalablerest/values-local.yaml
+helm upgrade --install mobi helm/mobi \
+  --namespace mobi \
+  --values helm/mobi/values-local.yaml
 ```
 
 ## Secrets
@@ -92,7 +92,7 @@ Install MySQL:
 ```bash
 kubectl apply -f k8s/infra/mysql/initdb-configmap.yaml
 helm upgrade --install mysql bitnami/mysql \
-  --namespace scalablerest \
+  --namespace mobi \
   --values k8s/infra/mysql/values.yaml \
   --set auth.rootPassword='<local-root-password>'
 ```
@@ -101,7 +101,7 @@ Install Redis:
 
 ```bash
 helm upgrade --install redis bitnami/redis \
-  --namespace scalablerest \
+  --namespace mobi \
   --values k8s/infra/redis/values.yaml
 ```
 
@@ -109,7 +109,7 @@ Install Kafka:
 
 ```bash
 helm upgrade --install kafka bitnami/kafka \
-  --namespace scalablerest \
+  --namespace mobi \
   --values k8s/infra/kafka/values.yaml
 ```
 
@@ -126,19 +126,19 @@ kafka:9092
 Apply the app workloads after the dependency pods are ready and the local images have been loaded into kind:
 
 ```bash
-helm upgrade --install scalablerest helm/scalablerest \
-  --namespace scalablerest \
-  --values helm/scalablerest/values-local.yaml \
+helm upgrade --install mobi helm/mobi \
+  --namespace mobi \
+  --values helm/mobi/values-local.yaml \
   --wait
 ```
 
 The app Deployments use these local image tags:
 
 ```text
-scalablerest/api-gateway:local
-scalablerest/auth-service:local
-scalablerest/product-service:local
-scalablerest/inventory-service:local
-scalablerest/order-service:local
-scalablerest/notification-service:local
+mobi/api-gateway:local
+mobi/auth-service:local
+mobi/product-service:local
+mobi/inventory-service:local
+mobi/order-service:local
+mobi/notification-service:local
 ```

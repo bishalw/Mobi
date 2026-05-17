@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ENV_FILE="${ENV_FILE:-.env.local}"
-NAMESPACE="${K8S_NAMESPACE:-scalablerest}"
+NAMESPACE="${K8S_NAMESPACE:-mobi}"
 
 if [[ -f "$ENV_FILE" ]]; then
   set -a
@@ -52,7 +52,7 @@ done
 
 kubectl apply -f k8s/base/namespace.yaml
 
-kubectl create secret generic scalablerest-secrets \
+kubectl create secret generic mobi-secrets \
   --namespace "$NAMESPACE" \
   --from-literal=MYSQL_ROOT_PASSWORD="$MYSQL_ROOT_PASSWORD" \
   --from-literal=AUTH_DB_PASSWORD="$AUTH_DB_PASSWORD" \
@@ -87,15 +87,15 @@ helm upgrade --install kafka bitnami/kafka \
   --wait \
   --timeout 10m
 
-if ! helm status scalablerest --namespace "$NAMESPACE" >/dev/null 2>&1; then
-  kubectl delete deployment,service --namespace "$NAMESPACE" -l app.kubernetes.io/part-of=scalablerest --ignore-not-found
+if ! helm status mobi --namespace "$NAMESPACE" >/dev/null 2>&1; then
+  kubectl delete deployment,service --namespace "$NAMESPACE" -l app.kubernetes.io/part-of=mobi --ignore-not-found
   kubectl delete ingress api-gateway --namespace "$NAMESPACE" --ignore-not-found
-  kubectl delete configmap scalablerest-config --namespace "$NAMESPACE" --ignore-not-found
+  kubectl delete configmap mobi-config --namespace "$NAMESPACE" --ignore-not-found
 fi
 
-helm upgrade --install scalablerest helm/scalablerest \
+helm upgrade --install mobi helm/mobi \
   --namespace "$NAMESPACE" \
-  --values helm/scalablerest/values-local.yaml \
+  --values helm/mobi/values-local.yaml \
   --wait \
   --timeout 5m
 
@@ -106,4 +106,4 @@ kubectl rollout status deployment/order-service --namespace "$NAMESPACE" --timeo
 kubectl rollout status deployment/notification-service --namespace "$NAMESPACE" --timeout 5m
 kubectl rollout status deployment/api-gateway --namespace "$NAMESPACE" --timeout 5m
 
-echo "ScalableRest Kubernetes deployment is ready"
+echo "Mobi Kubernetes deployment is ready"

@@ -1,0 +1,194 @@
+package com.mobi.order.service;
+
+import com.mobi.order.client.InventoryClient;
+import com.mobi.order.client.ProductClient;
+import com.mobi.order.dto.BatchReserveItemRequest;
+import com.mobi.order.dto.BatchReserveRequest;
+import com.mobi.order.dto.CreateOrderItemRequest;
+import com.mobi.order.dto.CreateOrderRequest;
+import com.mobi.order.dto.OrderItemResponse;
+import com.mobi.order.dto.OrderResponse;
+import com.mobi.order.dto.ProductResponse;
+import com.mobi.order.entity.CustomerOrder;
+import com.mobi.order.entity.OrderItem;
+import com.mobi.order.enums.OrderStatus;
+import com.mobi.order.event.OrderEventPublisher;
+import com.mobi.order.event.OrderEventType;
+import com.mobi.order.exception.FeignErrorParser;
+import com.mobi.order.exception.OrderCreationException;
+import com.mobi.order.exception.ResourceNotFoundException;
+import com.mobi.order.repository.OrderRepository;
+import feign.FeignException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.util.List;
+
+@Service
+public class OrderServiceImpl implements OrderService {
+
+    private final OrderRepository orderRepository;
+    private final ProductClient productClient;
+    private final InventoryClient inventoryClient;
+    private final OrderIdempotencyService idempotencyService;
+    private final OrderEventPublisher orderEventPublisher;
+    private final OrderAuthorizationService authorizationService;
+
+    public OrderServiceImpl(OrderRepository orderRepository, ProductClient productClient, InventoryClient inventoryClient, OrderIdempotencyService idempotencyService, OrderEventPublisher orderEventPublisher, OrderAuthorizationService authorizationService) {
+        this.orderRepository = orderRepository;
+        this.productClient = productClient;
+        this.inventoryClient = inventoryClient;
+        this.idempotencyService = idempotencyService;
+        this.orderEventPublisher = orderEventPublisher;
+        this.authorizationService = authorizationService;
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse createOrder(CreateOrderRequest request, String idempotencyKey) {
+        authorizationService.requireOwnerOrAdmin(request.getUserId());
+        var cachedResponse = idempotencyService.get(idempotencyKey);
+        if (cachedResponse.isPresent()) {
+            return cachedResponse.get();
+        }
+
+        CustomerOrder order = new CustomerOrder();
+        order.setUserId(request.getUserId());
+        order.setStatus(OrderStatus.PENDING);
+
+        BigDecimal total = BigDecimal.ZERO;
+        for (CreateOrderItemRequest itemRequest : request.getItems()) {
+            ProductResponse product = productClient.getProduct(itemRequest.getProductId());
+            if (!Boolean.TRUE.equals(product.getActive())) {
+                throw new OrderCreationException("Product is not active: " + itemRequest.getProductId());
+            }
+
+            BigDecimal lineTotal = product.getPrice().multiply(BigDecimal.valueOf(itemRequest.getQuantity()));
+            OrderItem item = new OrderItem();
+            item.setProductId(product.getId());
+            item.setProductNameSnapshot(product.getName());
+            item.setUnitPriceSnapshot(product.getPrice());
+            item.setQuantity(itemRequest.getQuantity());
+            item.setLineTotal(lineTotal);
+            order.addItem(item);
+            total = total.add(lineTotal);
+        }
+        order.setTotalAmount(total);
+        CustomerOrder savedOrder = orderRepository.save(order);
+
+        List<BatchReserveItemRequest> reserveItems = request.getItems().stream()
+                .map(i -> new BatchReserveItemRequest(i.getProductId(), i.getQuantity()))
+                .toList();
+        BatchReserveRequest reserveRequest = new BatchReserveRequest(
+                savedOrder.getId().toString(), reserveItems);
+
+        try {
+            inventoryClient.batchReserve(reserveRequest);
+            savedOrder.setStatus(OrderStatus.INVENTORY_RESERVED);
+            savedOrder = orderRepository.save(savedOrder);
+            orderEventPublisher.publish(OrderEventType.ORDER_INVENTORY_RESERVED, savedOrder);
+            OrderResponse response = mapToResponse(savedOrder);
+            idempotencyService.save(idempotencyKey, response);
+            return response;
+        } catch (FeignException exp) {
+            savedOrder.setStatus(OrderStatus.CANCELLED);
+            savedOrder = orderRepository.save(savedOrder);
+            orderEventPublisher.publish(OrderEventType.ORDER_CANCELLED, savedOrder);
+            throw new OrderCreationException(
+                    FeignErrorParser.extractMessage(exp, "Unable to reserve inventory for order"), exp);
+        }
+    }
+
+    @Override
+    public List<OrderResponse> getAllOrders() {
+        authorizationService.requireAdmin();
+        return orderRepository.findAll().stream().map(this::mapToResponse).toList();
+    }
+
+    @Override
+    public OrderResponse getOrderById(Long id) {
+        CustomerOrder order = findOrderById(id);
+        authorizationService.requireOwnerOrAdmin(order);
+        return mapToResponse(order);
+    }
+
+    @Override
+    public List<OrderResponse> getOrdersByUserId(Long userId) {
+        authorizationService.requireOwnerOrAdmin(userId);
+        return orderRepository.findByUserId(userId).stream().map(this::mapToResponse).toList();
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse cancelOrder(Long id) {
+        CustomerOrder order = findOrderById(id);
+        authorizationService.requireOwnerOrAdmin(order);
+        if (order.getStatus() == OrderStatus.CONFIRMED) {
+            throw new OrderCreationException("Confirmed orders cannot be cancelled");
+        }
+        if (order.getStatus() == OrderStatus.INVENTORY_RESERVED) {
+            try {
+                inventoryClient.releaseReservation(order.getId().toString());
+            } catch (FeignException e) {
+                // Reaper will recover any stale reservation
+            }
+        }
+        order.setStatus(OrderStatus.CANCELLED);
+        order = orderRepository.save(order);
+        orderEventPublisher.publish(OrderEventType.ORDER_CANCELLED, order);
+        return mapToResponse(order);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse confirmOrder(Long id) {
+        CustomerOrder order = findOrderById(id);
+        authorizationService.requireOwnerOrAdmin(order);
+        if (order.getStatus() == OrderStatus.CONFIRMED) {
+            return mapToResponse(order);
+        }
+        if (order.getStatus() != OrderStatus.INVENTORY_RESERVED) {
+            throw new OrderCreationException("Order cannot be confirmed in status " + order.getStatus());
+        }
+        // Integration point for a future payment-success handler; currently called manually / for testing.
+        try {
+            inventoryClient.confirmReservation(id.toString());
+        } catch (FeignException exp) {
+            throw new OrderCreationException(
+                    FeignErrorParser.extractMessage(exp, "Unable to confirm inventory reservation for order"), exp);
+        }
+        order.setStatus(OrderStatus.CONFIRMED);
+        order = orderRepository.save(order);
+        orderEventPublisher.publish(OrderEventType.ORDER_CONFIRMED, order);
+        return mapToResponse(order);
+    }
+
+    private CustomerOrder findOrderById(Long id) {
+        return orderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + id));
+    }
+
+    private OrderResponse mapToResponse(CustomerOrder order) {
+        OrderResponse response = new OrderResponse();
+        response.setId(order.getId());
+        response.setUserId(order.getUserId());
+        response.setStatus(order.getStatus());
+        response.setTotalAmount(order.getTotalAmount());
+        response.setCreatedAt(order.getCreatedAt());
+        response.setUpdatedAt(order.getUpdatedAt());
+        response.setItems(order.getItems().stream().map(this::mapItemToResponse).toList());
+        return response;
+    }
+
+    private OrderItemResponse mapItemToResponse(OrderItem item) {
+        OrderItemResponse response = new OrderItemResponse();
+        response.setId(item.getId());
+        response.setProductId(item.getProductId());
+        response.setProductNameSnapshot(item.getProductNameSnapshot());
+        response.setUnitPriceSnapshot(item.getUnitPriceSnapshot());
+        response.setQuantity(item.getQuantity());
+        response.setLineTotal(item.getLineTotal());
+        return response;
+    }
+}

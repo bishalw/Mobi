@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: mysql-initdb
-  namespace: scalablerest
+  namespace: mobi
 data:
   01-create-service-databases.sh: |
     #!/usr/bin/env bash

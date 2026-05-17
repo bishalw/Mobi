@@ -10,11 +10,11 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.scalablerest</groupId>
+    <groupId>com.mobi</groupId>
     <artifactId>order-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>order-service</name>
-    <description>Order service for ScalableRest</description>
+    <description>Order service for Mobi</description>
 
     <properties>
         <java.version>21</java.version>

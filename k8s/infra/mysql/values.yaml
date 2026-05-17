@@ -8,7 +8,7 @@ image:
 architecture: standalone
 
 auth:
-  database: scalablerest
+  database: mobi
 
 primary:
   persistence:
@@ -22,7 +22,7 @@ primary:
     - name: AUTH_DB_PASSWORD
       valueFrom:
         secretKeyRef:
-          name: scalablerest-secrets
+          name: mobi-secrets
           key: AUTH_DB_PASSWORD
     - name: PRODUCT_DB_NAME
       value: productdb
@@ -31,7 +31,7 @@ primary:
     - name: PRODUCT_DB_PASSWORD
       valueFrom:
         secretKeyRef:
-          name: scalablerest-secrets
+          name: mobi-secrets
           key: PRODUCT_DB_PASSWORD
     - name: INVENTORY_DB_NAME
       value: inventorydb
@@ -40,7 +40,7 @@ primary:
     - name: INVENTORY_DB_PASSWORD
       valueFrom:
         secretKeyRef:
-          name: scalablerest-secrets
+          name: mobi-secrets
           key: INVENTORY_DB_PASSWORD
     - name: ORDER_DB_NAME
       value: orderdb
@@ -49,7 +49,7 @@ primary:
     - name: ORDER_DB_PASSWORD
       valueFrom:
         secretKeyRef:
-          name: scalablerest-secrets
+          name: mobi-secrets
           key: ORDER_DB_PASSWORD
 
 initdbScriptsConfigMap: mysql-initdb

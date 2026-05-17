@@ -10,11 +10,11 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.scalablerest</groupId>
+    <groupId>com.mobi</groupId>
     <artifactId>auth-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>auth-service</name>
-    <description>Authentication service for ScalableRest</description>
+    <description>Authentication service for Mobi</description>
 
     <properties>
         <java.version>21</java.version>

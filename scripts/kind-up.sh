@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CLUSTER_NAME="${KIND_CLUSTER_NAME:-scalablerest}"
+CLUSTER_NAME="${KIND_CLUSTER_NAME:-mobi}"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then

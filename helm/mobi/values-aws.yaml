@@ -1,0 +1,85 @@
+namespaceOverride: mobi
+
+image:
+  pullPolicy: IfNotPresent
+  tag: replace-with-git-sha
+
+services:
+  api-gateway:
+    image: "<aws-account-id>.dkr.ecr.<region>.amazonaws.com/mobi/api-gateway"
+  auth-service:
+    image: "<aws-account-id>.dkr.ecr.<region>.amazonaws.com/mobi/auth-service"
+  product-service:
+    image: "<aws-account-id>.dkr.ecr.<region>.amazonaws.com/mobi/product-service"
+  inventory-service:
+    image: "<aws-account-id>.dkr.ecr.<region>.amazonaws.com/mobi/inventory-service"
+  order-service:
+    image: "<aws-account-id>.dkr.ecr.<region>.amazonaws.com/mobi/order-service"
+  notification-service:
+    image: "<aws-account-id>.dkr.ecr.<region>.amazonaws.com/mobi/notification-service"
+
+config:
+  AUTH_SERVICE_URL: http://auth-service:8082
+  PRODUCT_SERVICE_URL: http://product-service:8083
+  INVENTORY_SERVICE_URL: http://inventory-service:8084
+  ORDER_SERVICE_URL: http://order-service:8085
+
+  AUTH_DB_URL: "jdbc:mysql://<rds-endpoint>:3306/authdb"
+  PRODUCT_DB_URL: "jdbc:mysql://<rds-endpoint>:3306/productdb"
+  INVENTORY_DB_URL: "jdbc:mysql://<rds-endpoint>:3306/inventorydb"
+  ORDER_DB_URL: "jdbc:mysql://<rds-endpoint>:3306/orderdb"
+
+  REDIS_HOST: "<elasticache-primary-endpoint>"
+  REDIS_PORT: "6379"
+
+  KAFKA_BOOTSTRAP_SERVERS: "<msk-bootstrap-brokers>"
+
+  AUTH_DB_USERNAME: auth_user
+  PRODUCT_DB_USERNAME: product_user
+  INVENTORY_DB_USERNAME: inventory_user
+  ORDER_DB_USERNAME: order_user
+
+  AUTH_JPA_DDL_AUTO: validate
+  PRODUCT_JPA_DDL_AUTO: validate
+  INVENTORY_JPA_DDL_AUTO: validate
+  ORDER_JPA_DDL_AUTO: validate
+
+  AUTH_JPA_SHOW_SQL: "false"
+  PRODUCT_JPA_SHOW_SQL: "false"
+  INVENTORY_JPA_SHOW_SQL: "false"
+  ORDER_JPA_SHOW_SQL: "false"
+
+  ORDER_IDEMPOTENCY_TTL_SECONDS: "86400"
+  ORDER_EVENTS_TOPIC: order-events
+  USER_EVENTS_TOPIC: user-events
+  NOTIFICATION_CONSUMER_GROUP: notification-service
+  JWT_EXPIRATION_MS: "3600000"
+  ADMIN_BOOTSTRAP_ENABLED: "false"
+
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /actuator/health/readiness
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+  hosts:
+    - host: ""
+      paths:
+        - path: /actuator
+          service: api-gateway
+          port: 8080
+        - path: /auth
+          service: api-gateway
+          port: 8080
+        - path: /productapi
+          service: api-gateway
+          port: 8080
+        - path: /inventoryapi
+          service: api-gateway
+          port: 8080
+        - path: /orderapi
+          service: api-gateway
+          port: 8080
+

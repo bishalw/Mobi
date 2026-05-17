@@ -1,4 +1,4 @@
-# ScalableRest
+# Mobi
 
 Spring Boot microservices demo using Spring Cloud Gateway, MySQL, Redis, Kafka, Kubernetes, kind, and Helm.
 
@@ -123,19 +123,19 @@ Docker Desktop
 The app services are deployed through:
 
 ```text
-helm/scalablerest
+helm/mobi
 ```
 
 Local values:
 
 ```text
-helm/scalablerest/values-local.yaml
+helm/mobi/values-local.yaml
 ```
 
 AWS skeleton values:
 
 ```text
-helm/scalablerest/values-aws.yaml
+helm/mobi/values-aws.yaml
 ```
 
 ## Verification
@@ -151,14 +151,14 @@ curl http://localhost/actuator/health/liveness
 Cluster status:
 
 ```bash
-kubectl get pods -n scalablerest
-helm list -n scalablerest
+kubectl get pods -n mobi
+helm list -n mobi
 ```
 
 Expected behavior:
 
 - All app and dependency pods are `Running`.
-- The `scalablerest` Helm release is `deployed`.
+- The `mobi` Helm release is `deployed`.
 - The smoke script registers a user, seeds product/inventory as the local admin, creates/confirms/cancels orders, and notification logs show Kafka consumer activity.
 
 ## Service Routing
@@ -196,7 +196,7 @@ REDIS_HOST
 KAFKA_BOOTSTRAP_SERVERS
 ```
 
-Sensitive values are created from `.env.local` as the `scalablerest-secrets` Kubernetes Secret:
+Sensitive values are created from `.env.local` as the `mobi-secrets` Kubernetes Secret:
 
 ```text
 AUTH_DB_PASSWORD
@@ -278,9 +278,9 @@ lsof -iTCP:80 -sTCP:LISTEN
 ### View logs
 
 ```bash
-kubectl logs -n scalablerest deployment/api-gateway -f
-kubectl logs -n scalablerest deployment/auth-service -f
-kubectl logs -n scalablerest deployment/product-service -f
+kubectl logs -n mobi deployment/api-gateway -f
+kubectl logs -n mobi deployment/auth-service -f
+kubectl logs -n mobi deployment/product-service -f
 ```
 
 ### Rebuild and redeploy
@@ -293,7 +293,7 @@ kubectl logs -n scalablerest deployment/product-service -f
 ### Reset the local cluster
 
 ```bash
-kind delete cluster --name scalablerest
+kind delete cluster --name mobi
 ./scripts/kind-up.sh
 ./scripts/kind-load-images.sh
 ./scripts/k8s-deploy.sh

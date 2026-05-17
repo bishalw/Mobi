@@ -10,11 +10,11 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.scalablerest</groupId>
+    <groupId>com.mobi</groupId>
     <artifactId>api-gateway</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>api-gateway</name>
-    <description>API gateway for ScalableRest services</description>
+    <description>API gateway for Mobi services</description>
 
     <properties>
         <java.version>21</java.version>
