@@ -5,19 +5,26 @@ Spring Boot microservices powering the Mobi platform.
 ## Architecture
 
 ```
-                   [ api-gateway :8080 ]
-                  /       |       |    \
-                 /        |       |     \
-    [auth :8082]  [product :8083]  [inventory :8084]  [order :8085]
-         |              |                |                |      |
-         +──────────────+────────────────+────────────────+      |
-                                |                                |
-                        [ MySQL :3306 ]                  [ Redis :6379 ]
-                   authdb / productdb /                  (idempotency)
-                   inventorydb / orderdb
+    [ Docker Desktop ]
+            |
+    [ kind cluster: mobi ]
+            |
+    [ ingress-nginx :80 / :443 ]
+            |
+    [ api-gateway :8080 ]
+       /    |    |    \
+      /     |    |     \
+  [auth  [product  [inventory  [order
+  :8082]  :8083]    :8084]     :8085]
+     |       |          |        |    \
+     +-------+----------+--------+     |
+                  |                    |
+          [ MySQL :3306 ]       [ Redis :6379 ]
+       authdb / productdb /     (idempotency)
+       inventorydb / orderdb
 
 
-    Async (Kafka :9092)
+    Async (Kafka :9092)  -- all running inside kind cluster via Helm
 
     auth-service  --[user-events]-->  Kafka
     order-service --[order-events]--> Kafka --> [ notification-service :8086 ]
