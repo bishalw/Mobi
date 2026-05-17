@@ -43,9 +43,25 @@ For a named local host, add this entry to `/etc/hosts`:
 127.0.0.1 scalablerest.local
 ```
 
+## Ingress
+
+Install ingress-nginx with the local values file:
+
+```bash
+helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+  --namespace ingress-nginx \
+  --create-namespace \
+  --values k8s/infra/ingress-nginx/values.yaml
+```
+
+The application ingress routes public paths to `api-gateway`; downstream service routing stays inside the gateway.
+
+```bash
+kubectl apply -f k8s/ingress/api-gateway-ingress.yaml
+```
+
 ## Secrets
 
 Do not commit real secret values.
 
 Copy `k8s/base/secrets.example.yaml` to a local-only file or create the secret directly with `kubectl`.
-
