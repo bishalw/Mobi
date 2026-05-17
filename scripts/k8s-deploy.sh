@@ -51,7 +51,6 @@ for name in "${required_env[@]}"; do
 done
 
 kubectl apply -f k8s/base/namespace.yaml
-kubectl apply -f k8s/base/configmap.yaml
 
 kubectl create secret generic scalablerest-secrets \
   --namespace "$NAMESPACE" \
@@ -88,13 +87,17 @@ helm upgrade --install kafka bitnami/kafka \
   --wait \
   --timeout 10m
 
-kubectl apply -f k8s/apps/auth-service
-kubectl apply -f k8s/apps/product-service
-kubectl apply -f k8s/apps/inventory-service
-kubectl apply -f k8s/apps/order-service
-kubectl apply -f k8s/apps/notification-service
-kubectl apply -f k8s/apps/api-gateway
-kubectl apply -f k8s/ingress/api-gateway-ingress.yaml
+if ! helm status scalablerest --namespace "$NAMESPACE" >/dev/null 2>&1; then
+  kubectl delete deployment,service --namespace "$NAMESPACE" -l app.kubernetes.io/part-of=scalablerest --ignore-not-found
+  kubectl delete ingress api-gateway --namespace "$NAMESPACE" --ignore-not-found
+  kubectl delete configmap scalablerest-config --namespace "$NAMESPACE" --ignore-not-found
+fi
+
+helm upgrade --install scalablerest helm/scalablerest \
+  --namespace "$NAMESPACE" \
+  --values helm/scalablerest/values-local.yaml \
+  --wait \
+  --timeout 5m
 
 kubectl rollout status deployment/auth-service --namespace "$NAMESPACE" --timeout 5m
 kubectl rollout status deployment/product-service --namespace "$NAMESPACE" --timeout 5m

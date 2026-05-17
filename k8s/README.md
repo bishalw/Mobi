@@ -124,12 +124,10 @@ kafka:9092
 Apply the app workloads after the dependency pods are ready and the local images have been loaded into kind:
 
 ```bash
-kubectl apply -f k8s/apps/api-gateway
-kubectl apply -f k8s/apps/auth-service
-kubectl apply -f k8s/apps/product-service
-kubectl apply -f k8s/apps/inventory-service
-kubectl apply -f k8s/apps/order-service
-kubectl apply -f k8s/apps/notification-service
+helm upgrade --install scalablerest helm/scalablerest \
+  --namespace scalablerest \
+  --values helm/scalablerest/values-local.yaml \
+  --wait
 ```
 
 The app Deployments use the same image tags as Docker Compose:
