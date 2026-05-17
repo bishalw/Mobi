@@ -4,30 +4,38 @@ Spring Boot microservices powering the Mobi platform.
 
 ## Architecture
 
-```
-    [ Docker Desktop ]
-            |
-    [ kind cluster: mobi ]
-            |
-    [ ingress-nginx :80 / :443 ]
-            |
-    [ api-gateway :8080 ]
-       /    |    |    \
-      /     |    |     \
-  [auth  [product  [inventory  [order
-  :8082]  :8083]    :8084]     :8085]
-     |       |          |        |    \
-     +-------+----------+--------+     |
-                  |                    |
-          [ MySQL :3306 ]       [ Redis :6379 ]
-       authdb / productdb /     (idempotency)
-       inventorydb / orderdb
+```mermaid
+graph TD
+    Docker["Docker Desktop"]
+    Kind["kind cluster: mobi"]
+    Ingress["ingress-nginx<br/>:80 / :443"]
+    Gateway["api-gateway<br/>:8080"]
+    Auth["auth-service<br/>:8082"]
+    Product["product-service<br/>:8083"]
+    Inventory["inventory-service<br/>:8084"]
+    Order["order-service<br/>:8085"]
+    Notification["notification-service<br/>:8086"]
+    MySQL[("MySQL :3306<br/>authdb / productdb<br/>inventorydb / orderdb")]
+    Redis[("Redis :6379<br/>idempotency")]
+    Kafka{{"Kafka :9092"}}
 
+    Docker --> Kind
+    Kind --> Ingress
+    Ingress --> Gateway
+    Gateway --> Auth
+    Gateway --> Product
+    Gateway --> Inventory
+    Gateway --> Order
 
-    Async (Kafka :9092)  -- all running inside kind cluster via Helm
+    Auth --> MySQL
+    Product --> MySQL
+    Inventory --> MySQL
+    Order --> MySQL
+    Order --> Redis
 
-    auth-service  --[user-events]-->  Kafka
-    order-service --[order-events]--> Kafka --> [ notification-service :8086 ]
+    Auth -->|user-events| Kafka
+    Order -->|order-events| Kafka
+    Kafka --> Notification
 ```
 
 ## Services

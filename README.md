@@ -4,20 +4,38 @@ A phone store platform built with Spring Boot microservices and a React operatio
 
 ## Architecture
 
-```
-Browser (localhost:5173)
-  └─> React Frontend
-        └─> ingress-nginx (localhost:80)
-              └─> api-gateway (:8080)
-                    ├─> auth-service (:8082)       ──> MySQL
-                    ├─> product-service (:8083)    ──> MySQL
-                    ├─> inventory-service (:8084)  ──> MySQL
-                    └─> order-service (:8085)      ──> MySQL
-                                                   ──> Redis
+```mermaid
+graph TD
+    Browser["Browser<br/>localhost:5173"]
+    Frontend["React Frontend"]
+    Ingress["ingress-nginx<br/>localhost:80"]
+    Gateway["api-gateway<br/>:8080"]
+    Auth["auth-service<br/>:8082"]
+    Product["product-service<br/>:8083"]
+    Inventory["inventory-service<br/>:8084"]
+    Order["order-service<br/>:8085"]
+    Notification["notification-service<br/>:8086"]
+    MySQL[("MySQL")]
+    Redis[("Redis")]
+    Kafka{{"Kafka"}}
 
-auth-service  ──[user-events]──>  Kafka
-order-service ──[order-events]─>  Kafka
-                                  Kafka ──> notification-service (:8086)
+    Browser --> Frontend
+    Frontend --> Ingress
+    Ingress --> Gateway
+    Gateway --> Auth
+    Gateway --> Product
+    Gateway --> Inventory
+    Gateway --> Order
+
+    Auth --> MySQL
+    Product --> MySQL
+    Inventory --> MySQL
+    Order --> MySQL
+    Order --> Redis
+
+    Auth -->|user-events| Kafka
+    Order -->|order-events| Kafka
+    Kafka --> Notification
 ```
 
 ## Services
