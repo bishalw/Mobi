@@ -2,6 +2,36 @@
 
 Spring Boot microservices powering the Mobi platform.
 
+## Architecture
+
+```
+                        ┌─────────────────────────────────────────┐
+                        │              api-gateway :8080           │
+                        └────┬──────────┬──────────┬──────────────┘
+                             │          │          │          │
+               ┌─────────────▼─┐  ┌────▼──────┐  │    ┌─────▼──────────┐
+               │ auth-service  │  │ product-  │  │    │ inventory-     │
+               │    :8082      │  │ service   │  │    │ service :8084  │
+               └──────┬────────┘  │  :8083    │  │    └───────┬────────┘
+                      │           └─────┬─────┘  │            │
+                      │                 │    ┌────▼──────┐     │
+                      │                 │    │  order-   │     │
+                      │                 │    │ service   │     │
+                      │                 │    │  :8085    │     │
+                      │                 │    └─┬───┬─────┘     │
+                      │                 │      │   │           │
+               ┌──────▼─────────────────▼──────▼┐  │     ┌────▼──────┐
+               │           MySQL :3306           │  │     │  Redis    │
+               │  authdb │ productdb │ orderdb   │  │     │  :6379    │
+               │         │ inventorydb           │  │     └───────────┘
+               └───────────────────────────────-─┘  │
+                                                     │ [order-events]
+               [user-events] ┌──────────────────┐ ◄─┘
+               ◄─────────────│      Kafka       │
+                             │      :9092       │────► notification-service
+                             └──────────────────┘           :8086
+```
+
 ## Services
 
 | Service | Port | Description |
