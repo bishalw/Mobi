@@ -33,6 +33,15 @@ order-service uses Redis for idempotency keys.
 6. Apply the app Deployments, Services, and Ingress.
 7. Run the smoke test through the ingress endpoint.
 
+The helper scripts wrap that flow:
+
+```bash
+./scripts/kind-up.sh
+./scripts/kind-load-images.sh
+./scripts/k8s-deploy.sh
+./scripts/k8s-smoke.sh
+```
+
 ## Local host
 
 The ingress can be reached through `localhost` once the kind cluster maps host port `80` to the ingress controller.
