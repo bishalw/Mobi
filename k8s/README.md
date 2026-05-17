@@ -63,10 +63,12 @@ helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --values k8s/infra/ingress-nginx/values.yaml
 ```
 
-The application ingress routes public paths to `api-gateway`; downstream service routing stays inside the gateway.
+The application ingress routes public paths to `api-gateway`; downstream service routing stays inside the gateway. The app ingress is rendered by the `helm/scalablerest` chart.
 
 ```bash
-kubectl apply -f k8s/ingress/api-gateway-ingress.yaml
+helm upgrade --install scalablerest helm/scalablerest \
+  --namespace scalablerest \
+  --values helm/scalablerest/values-local.yaml
 ```
 
 ## Secrets
