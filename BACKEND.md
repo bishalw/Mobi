@@ -5,28 +5,22 @@ Spring Boot microservices powering the Mobi platform.
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                      api-gateway  :8080                      │
-└──────────┬───────────────┬──────────────┬────────────────────┘
-           │               │              │              │
-    ┌──────▼──────┐  ┌─────▼──────┐  ┌───▼────────┐  ┌─▼───────────┐
-    │ auth-service│  │  product-  │  │ inventory- │  │   order-    │
-    │    :8082    │  │  service   │  │  service   │  │   service   │
-    └──────┬──────┘  │   :8083    │  │   :8084    │  │   :8085     │
-           │         └─────┬──────┘  └─────┬──────┘  └──┬─────────┘
-           │               │               │             │       │
-           └───────────────┴───────────────┴─────────────┘       │
-                                   │                              │
-                        ┌──────────▼──────────┐           ┌──────▼──────┐
-                        │     MySQL  :3306     │           │  Redis      │
-                        │  authdb  productdb   │           │  :6379      │
-                        │  inventorydb orderdb │           └─────────────┘
-                        └─────────────────────┘
+                   [ api-gateway :8080 ]
+                  /       |       |    \
+                 /        |       |     \
+    [auth :8082]  [product :8083]  [inventory :8084]  [order :8085]
+         |              |                |                |      |
+         +──────────────+────────────────+────────────────+      |
+                                |                                |
+                        [ MySQL :3306 ]                  [ Redis :6379 ]
+                   authdb / productdb /                  (idempotency)
+                   inventorydb / orderdb
 
-  Async events (Kafka :9092)
 
-  auth-service  ──[user-events]──►  Kafka
-  order-service ──[order-events]─►  Kafka  ──►  notification-service :8086
+    Async (Kafka :9092)
+
+    auth-service  --[user-events]-->  Kafka
+    order-service --[order-events]--> Kafka --> [ notification-service :8086 ]
 ```
 
 ## Services
