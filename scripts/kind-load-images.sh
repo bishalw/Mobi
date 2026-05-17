@@ -2,7 +2,6 @@
 set -euo pipefail
 
 CLUSTER_NAME="${KIND_CLUSTER_NAME:-scalablerest}"
-ENV_FILE="${ENV_FILE:-.env.local}"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -14,13 +13,6 @@ require_cmd() {
 require_cmd docker
 require_cmd kind
 
-COMPOSE_ENV_ARGS=()
-if [[ -f "$ENV_FILE" ]]; then
-  COMPOSE_ENV_ARGS=(--env-file "$ENV_FILE")
-fi
-
-docker compose "${COMPOSE_ENV_ARGS[@]}" build
-
 images=(
   scalablerest/api-gateway:local
   scalablerest/auth-service:local
@@ -30,9 +22,21 @@ images=(
   scalablerest/notification-service:local
 )
 
+contexts=(
+  api-gateway
+  auth-service
+  product-service
+  inventory-service
+  order-service
+  notification-service
+)
+
+for index in "${!images[@]}"; do
+  docker build -t "${images[$index]}" "./${contexts[$index]}"
+done
+
 for image in "${images[@]}"; do
   kind load docker-image "$image" --name "$CLUSTER_NAME"
 done
 
 echo "Loaded ${#images[@]} local images into kind cluster '$CLUSTER_NAME'"
-

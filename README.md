@@ -1,6 +1,6 @@
 # ScalableRest
 
-Spring Boot microservices demo using Spring Cloud Gateway, MySQL, explicit service URLs, and Docker Compose.
+Spring Boot microservices demo using Spring Cloud Gateway, MySQL, Redis, Kafka, Kubernetes, kind, and Helm.
 
 ## Architecture
 
@@ -11,7 +11,8 @@ Spring Boot microservices demo using Spring Cloud Gateway, MySQL, explicit servi
 | `product-service` | `8083` | Product API service |
 | `inventory-service` | `8084` | Inventory and stock reservation service |
 | `order-service` | `8085` | Order creation and checkout orchestration service |
-| `redis` | `6379` | Redis for fast temporary state, starting with order idempotency keys |
+| `notification-service` | `8086` | Kafka consumer for user and order events |
+| `redis` | `6379` | Redis for order idempotency keys |
 | `kafka` | `9092` | Kafka broker for asynchronous domain events |
 | `mysql` | internal `3306` | MySQL server with separate service-owned databases |
 
@@ -19,25 +20,29 @@ Runtime flow:
 
 ```text
 Client
+  -> ingress-nginx
   -> api-gateway
   -> auth-service / product-service / inventory-service / order-service
 
-api-gateway routes to services through environment-configured URLs.
-services load config from local Spring Boot properties and Docker Compose environment variables.
+auth-service and order-service publish Kafka events.
+notification-service consumes Kafka events.
 auth-service, product-service, inventory-service, and order-service use separate MySQL databases.
+order-service uses Redis for idempotency keys.
 ```
 
 ## Requirements
 
 - Docker Desktop
-- Docker Compose
+- kind
+- kubectl
+- Helm
 
 Optional for direct service development:
 
 - Java 21
 - Maven wrapper included in each service
 
-## Environment setup
+## Environment Setup
 
 Copy the example environment file:
 
@@ -50,29 +55,13 @@ Edit `.env.local` and set local values:
 ```bash
 MYSQL_ROOT_PASSWORD=localdevpassword
 
-AUTH_DB_NAME=authdb
-AUTH_DB_USERNAME=auth_user
 AUTH_DB_PASSWORD=replace-with-local-auth-db-password
-
-PRODUCT_DB_NAME=productdb
-PRODUCT_DB_USERNAME=product_user
 PRODUCT_DB_PASSWORD=replace-with-local-product-db-password
-
-INVENTORY_DB_NAME=inventorydb
-INVENTORY_DB_USERNAME=inventory_user
 INVENTORY_DB_PASSWORD=replace-with-local-inventory-db-password
-
-ORDER_DB_NAME=orderdb
-ORDER_DB_USERNAME=order_user
 ORDER_DB_PASSWORD=replace-with-local-order-db-password
 
-ORDER_IDEMPOTENCY_TTL_SECONDS=86400
-ORDER_EVENTS_TOPIC=order-events
-USER_EVENTS_TOPIC=user-events
-INTERNAL_SERVICE_SECRET=local-internal-secret
-
 JWT_SECRET=replace-with-at-least-32-character-secret
-JWT_EXPIRATION_MS=3600000
+INTERNAL_SERVICE_SECRET=local-internal-secret
 
 ADMIN_BOOTSTRAP_ENABLED=true
 ADMIN_BOOTSTRAP_USERNAME=admin
@@ -81,80 +70,98 @@ ADMIN_BOOTSTRAP_PASSWORD=replace-with-local-admin-password
 
 `.env.local` is ignored by git and should never be committed.
 
-## Running with Docker Compose
+## Running Locally With Kubernetes
 
-Start the full stack:
+Start the kind cluster and install ingress-nginx:
 
 ```bash
-docker compose --env-file .env.local up --build -d
+./scripts/kind-up.sh
 ```
 
-Check container status:
+Build service images and load them into kind:
 
 ```bash
-docker compose --env-file .env.local ps
+./scripts/kind-load-images.sh
 ```
 
-Stop the stack:
+Deploy MySQL, Redis, Kafka, and the app chart:
 
 ```bash
-docker compose --env-file .env.local down
+./scripts/k8s-deploy.sh
 ```
 
-Stop the stack and remove the MySQL volume:
+Run the end-to-end smoke test through ingress:
 
 ```bash
-docker compose --env-file .env.local down -v
+./scripts/k8s-smoke.sh
+```
+
+The app is exposed locally at:
+
+```text
+http://localhost
+```
+
+## Local Kubernetes Shape
+
+```text
+Docker Desktop
+  -> kind cluster
+    -> ingress-nginx
+      -> api-gateway
+        -> auth-service
+        -> product-service
+        -> inventory-service
+        -> order-service
+
+    -> notification-service
+    -> MySQL
+    -> Redis
+    -> Kafka
+```
+
+The app services are deployed through:
+
+```text
+helm/scalablerest
+```
+
+Local values:
+
+```text
+helm/scalablerest/values-local.yaml
+```
+
+AWS skeleton values:
+
+```text
+helm/scalablerest/values-aws.yaml
 ```
 
 ## Verification
 
-Health checks:
+Gateway health:
 
 ```bash
-curl http://localhost:8080/actuator/health
-curl http://localhost:8082/actuator/health
-curl http://localhost:8083/actuator/health
-curl http://localhost:8084/actuator/health
-curl http://localhost:8085/actuator/health
+curl http://localhost/actuator/health
+curl http://localhost/actuator/health/readiness
+curl http://localhost/actuator/health/liveness
 ```
 
-Redis check:
+Cluster status:
 
 ```bash
-docker compose --env-file .env.local exec redis redis-cli ping
-```
-
-Kafka check:
-
-```bash
-docker compose --env-file .env.local exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
-```
-
-End-to-end smoke check:
-
-```bash
-./scripts/smoke.sh
-docker compose --env-file .env.local logs --tail=200 notification-service
-```
-
-Gateway checks:
-
-```bash
-curl -i -X OPTIONS http://localhost:8080/auth/register
-curl -i -X OPTIONS http://localhost:8080/productapi/products
-curl -i -X OPTIONS http://localhost:8080/inventoryapi/products
-curl -i -X OPTIONS http://localhost:8080/orderapi/orders
+kubectl get pods -n scalablerest
+helm list -n scalablerest
 ```
 
 Expected behavior:
 
-- Actuator health endpoints return `{"status":"UP"}`.
-- Auth route is reachable through the gateway.
-- Product and inventory read routes are reachable through the gateway.
-- The smoke script registers a user, seeds product/inventory as the local admin, creates/confirms/cancels orders, and notification logs show welcome/order events.
+- All app and dependency pods are `Running`.
+- The `scalablerest` Helm release is `deployed`.
+- The smoke script registers a user, seeds product/inventory as the local admin, creates/confirms/cancels orders, and notification logs show Kafka consumer activity.
 
-## Service routing
+## Service Routing
 
 The gateway routes through explicit, environment-overridable service URLs:
 
@@ -165,7 +172,7 @@ spring.cloud.gateway.server.webflux.routes[2].uri=${INVENTORY_SERVICE_URL:http:/
 spring.cloud.gateway.server.webflux.routes[3].uri=${ORDER_SERVICE_URL:http://localhost:8085}
 ```
 
-Docker Compose sets these to the internal Compose DNS names and container ports:
+Kubernetes sets these to internal Service DNS names:
 
 ```text
 AUTH_SERVICE_URL=http://auth-service:8082
@@ -174,61 +181,35 @@ INVENTORY_SERVICE_URL=http://inventory-service:8084
 ORDER_SERVICE_URL=http://order-service:8085
 ```
 
-For future Kubernetes deployment, use the same style with Kubernetes Service DNS names.
-
 ## Configuration
 
 Service configuration lives in each service's `src/main/resources/application.properties` and is overridden by environment variables.
 
-Secrets and environment-specific values are injected through Docker Compose:
-
-```properties
-spring.datasource.password=${AUTH_DB_PASSWORD}
-jwt.secret=${JWT_SECRET}
-```
-
-For local Docker smoke runs, `auth-service` can bootstrap one admin user from `ADMIN_BOOTSTRAP_*` variables. The service default is disabled; `docker-compose.yml` enables it with local defaults so the smoke script can seed products and inventory.
-
-For local Docker Compose, MySQL is one container with separate service-owned databases and users:
+Non-sensitive Kubernetes config is rendered by the app Helm chart into a ConfigMap:
 
 ```text
-mysql
-├── authdb     owned by auth_user
-├── productdb  owned by product_user
-├── inventorydb owned by inventory_user
-└── orderdb     owned by order_user
+AUTH_DB_URL
+PRODUCT_DB_URL
+INVENTORY_DB_URL
+ORDER_DB_URL
+REDIS_HOST
+KAFKA_BOOTSTRAP_SERVERS
 ```
 
-The database setup is initialized by:
+Sensitive values are created from `.env.local` as the `scalablerest-secrets` Kubernetes Secret:
 
 ```text
-docker/mysql/init/01-create-service-databases.sh
+AUTH_DB_PASSWORD
+PRODUCT_DB_PASSWORD
+INVENTORY_DB_PASSWORD
+ORDER_DB_PASSWORD
+JWT_SECRET
+INTERNAL_SERVICE_SECRET
+ADMIN_BOOTSTRAP_USERNAME
+ADMIN_BOOTSTRAP_PASSWORD
 ```
 
-## Scaling locally
-
-Docker Compose DNS provides stable service names for local development:
-
-```text
-http://auth-service:8082
-http://product-service:8083
-http://inventory-service:8084
-http://order-service:8085
-```
-
-If a service is scaled in Docker Compose, Docker DNS may return different container IPs across lookups:
-
-```bash
-docker compose --env-file .env.local up --scale auth-service=3 -d
-```
-
-This is basic DNS round-robin, not production-grade load balancing. It is acceptable for local testing, but production scaling should be handled by Kubernetes Services or another platform-level load balancer.
-
-For production-grade scaling later, Kubernetes Services should handle traffic across replicas while the application keeps using service URLs such as:
-
-```text
-http://product-service:8083
-```
+For local smoke runs, `auth-service` can bootstrap one admin user from `ADMIN_BOOTSTRAP_*` variables.
 
 ## Product API
 
@@ -271,17 +252,9 @@ Order creation supports an optional `Idempotency-Key` request header. Reusing th
 Order reads and commands are restricted to the order owner or an `ADMIN`; listing all orders is admin-only.
 Order confirmation is idempotent after an order reaches `CONFIRMED`.
 
-After order state changes, `order-service` writes asynchronous domain events to an outbox table and a scheduled publisher forwards them to Kafka topic `order-events`. Initial events include:
-
-```text
-ORDER_INVENTORY_RESERVED
-ORDER_CONFIRMED
-ORDER_CANCELLED
-```
+After order state changes, `order-service` writes asynchronous domain events to an outbox table and a scheduled publisher forwards them to Kafka topic `order-events`.
 
 ## Development
-
-The normal local runtime is Docker Compose.
 
 To test an individual service directly, use Java 21:
 
@@ -296,29 +269,32 @@ Each runnable service has its own Maven wrapper and Dockerfile.
 
 ### Port already in use
 
-Check the process using a port:
+kind maps local ports `80` and `443` to the ingress controller. Check the process using a port:
 
 ```bash
-lsof -iTCP:8080 -sTCP:LISTEN
-```
-
-Stop Docker containers:
-
-```bash
-docker compose --env-file .env.local down
+lsof -iTCP:80 -sTCP:LISTEN
 ```
 
 ### View logs
 
 ```bash
-docker compose --env-file .env.local logs -f api-gateway
-docker compose --env-file .env.local logs -f auth-service
-docker compose --env-file .env.local logs -f product-service
+kubectl logs -n scalablerest deployment/api-gateway -f
+kubectl logs -n scalablerest deployment/auth-service -f
+kubectl logs -n scalablerest deployment/product-service -f
 ```
 
-### Rebuild images
+### Rebuild and redeploy
 
 ```bash
-docker compose --env-file .env.local build --no-cache
-docker compose --env-file .env.local up -d
+./scripts/kind-load-images.sh
+./scripts/k8s-deploy.sh
+```
+
+### Reset the local cluster
+
+```bash
+kind delete cluster --name scalablerest
+./scripts/kind-up.sh
+./scripts/kind-load-images.sh
+./scripts/k8s-deploy.sh
 ```

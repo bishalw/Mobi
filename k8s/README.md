@@ -2,7 +2,7 @@
 
 This directory contains the local Kubernetes runtime for ScalableRest.
 
-The goal is to mirror the working Docker Compose topology while using Kubernetes primitives:
+The goal is to run the local stack through Kubernetes primitives:
 
 ```text
 localhost / scalablerest.local
@@ -130,7 +130,7 @@ helm upgrade --install scalablerest helm/scalablerest \
   --wait
 ```
 
-The app Deployments use the same image tags as Docker Compose:
+The app Deployments use these local image tags:
 
 ```text
 scalablerest/api-gateway:local
