@@ -30,6 +30,10 @@ require_env() {
 require_cmd kubectl
 require_cmd helm
 
+INTERNAL_SERVICE_SECRET="${INTERNAL_SERVICE_SECRET:-local-internal-secret}"
+ADMIN_BOOTSTRAP_USERNAME="${ADMIN_BOOTSTRAP_USERNAME:-admin}"
+ADMIN_BOOTSTRAP_PASSWORD="${ADMIN_BOOTSTRAP_PASSWORD:-adminpass}"
+
 required_env=(
   MYSQL_ROOT_PASSWORD
   AUTH_DB_PASSWORD
@@ -100,4 +104,3 @@ kubectl rollout status deployment/notification-service --namespace "$NAMESPACE" 
 kubectl rollout status deployment/api-gateway --namespace "$NAMESPACE" --timeout 5m
 
 echo "ScalableRest Kubernetes deployment is ready"
-
