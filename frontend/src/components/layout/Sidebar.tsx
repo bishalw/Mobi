@@ -31,8 +31,7 @@ export default function Sidebar({ onCartOpen }: Props) {
   return (
     <aside className="flex h-screen w-56 flex-col border-r border-gray-200 bg-white">
       <div className="border-b border-gray-200 px-5 py-4">
-        <span className="text-sm font-semibold tracking-tight text-gray-900">ScalableRest</span>
-        <span className="ml-2 text-xs text-gray-400">console</span>
+        <span className="text-sm font-semibold tracking-tight text-gray-900">Mobi</span>
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-0.5">
