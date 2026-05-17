@@ -1,3 +1,10 @@
+global:
+  security:
+    allowInsecureImages: true
+
+image:
+  repository: bitnamilegacy/kafka
+
 kraft:
   enabled: true
 
@@ -32,4 +39,3 @@ extraConfig: |
   transaction.state.log.replication.factor=1
   transaction.state.log.min.isr=1
   group.initial.rebalance.delay.ms=0
-

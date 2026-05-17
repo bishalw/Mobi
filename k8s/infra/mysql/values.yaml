@@ -1,3 +1,10 @@
+global:
+  security:
+    allowInsecureImages: true
+
+image:
+  repository: bitnamilegacy/mysql
+
 architecture: standalone
 
 auth:
@@ -46,4 +53,3 @@ primary:
           key: ORDER_DB_PASSWORD
 
 initdbScriptsConfigMap: mysql-initdb
-

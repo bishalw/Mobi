@@ -1,3 +1,10 @@
+global:
+  security:
+    allowInsecureImages: true
+
+image:
+  repository: bitnamilegacy/redis
+
 architecture: standalone
 
 auth:
@@ -7,4 +14,3 @@ master:
   persistence:
     enabled: true
     size: 1Gi
-
