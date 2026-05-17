@@ -4,6 +4,23 @@ image:
   pullPolicy: IfNotPresent
   tag: local
 
+services:
+  auth-service:
+    readinessInitialDelaySeconds: 160
+    livenessInitialDelaySeconds: 180
+  product-service:
+    readinessInitialDelaySeconds: 160
+    livenessInitialDelaySeconds: 180
+  inventory-service:
+    readinessInitialDelaySeconds: 160
+    livenessInitialDelaySeconds: 180
+  order-service:
+    readinessInitialDelaySeconds: 160
+    livenessInitialDelaySeconds: 180
+  notification-service:
+    readinessInitialDelaySeconds: 160
+    livenessInitialDelaySeconds: 180
+
 ingress:
   enabled: true
   className: nginx
