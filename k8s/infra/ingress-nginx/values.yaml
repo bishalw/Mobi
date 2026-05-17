@@ -1,9 +1,10 @@
 controller:
   replicaCount: 1
-  hostPort:
-    enabled: true
   service:
     type: NodePort
+    nodePorts:
+      http: 30080
+      https: 30443
   nodeSelector:
     ingress-ready: "true"
   tolerations:
