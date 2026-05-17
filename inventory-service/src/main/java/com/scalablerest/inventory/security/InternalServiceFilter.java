@@ -27,7 +27,7 @@ public class InternalServiceFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return "/actuator/health".equals(request.getRequestURI()) || internalServiceSecret.isBlank();
+        return request.getRequestURI().startsWith("/actuator/health") || internalServiceSecret.isBlank();
     }
 
     @Override
