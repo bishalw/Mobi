@@ -21,6 +21,8 @@ else
   echo "kind cluster '$CLUSTER_NAME' already exists"
 fi
 
+kubectl label node "$CLUSTER_NAME-control-plane" ingress-ready=true --overwrite
+
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx >/dev/null
 helm repo add bitnami https://charts.bitnami.com/bitnami >/dev/null
 helm repo update
@@ -35,4 +37,3 @@ helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
 kubectl apply -f k8s/base/namespace.yaml
 
 echo "kind cluster '$CLUSTER_NAME' is ready"
-
