@@ -30,6 +30,18 @@ auth-service, product-service, inventory-service, and order-service use separate
 order-service uses Redis for idempotency keys.
 ```
 
+## Frontend
+
+The `frontend/` directory contains the React + TypeScript operations console (Mobi). It talks exclusively to the api-gateway and requires the backend to be running.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+App runs at `http://localhost:5173`. See [frontend/README.md](frontend/README.md) for full details.
+
 ## Requirements
 
 - Docker Desktop
