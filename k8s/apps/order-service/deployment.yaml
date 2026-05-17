@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  namespace: scalablerest
+  labels:
+    app.kubernetes.io/name: order-service
+    app.kubernetes.io/part-of: scalablerest
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: order-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: order-service
+        app.kubernetes.io/part-of: scalablerest
+    spec:
+      containers:
+        - name: order-service
+          image: scalablerest/order-service:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8085
+          envFrom:
+            - configMapRef:
+                name: scalablerest-config
+            - secretRef:
+                name: scalablerest-secrets
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 40
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 120
+            periodSeconds: 20
+            timeoutSeconds: 3
+

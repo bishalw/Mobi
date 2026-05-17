@@ -109,3 +109,27 @@ jdbc:mysql://mysql:3306/authdb
 redis-master:6379
 kafka:9092
 ```
+
+## Applications
+
+Apply the app workloads after the dependency pods are ready and the local images have been loaded into kind:
+
+```bash
+kubectl apply -f k8s/apps/api-gateway
+kubectl apply -f k8s/apps/auth-service
+kubectl apply -f k8s/apps/product-service
+kubectl apply -f k8s/apps/inventory-service
+kubectl apply -f k8s/apps/order-service
+kubectl apply -f k8s/apps/notification-service
+```
+
+The app Deployments use the same image tags as Docker Compose:
+
+```text
+scalablerest/api-gateway:local
+scalablerest/auth-service:local
+scalablerest/product-service:local
+scalablerest/inventory-service:local
+scalablerest/order-service:local
+scalablerest/notification-service:local
+```
