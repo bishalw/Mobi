@@ -53,6 +53,20 @@ resource "aws_iam_role_policy_attachment" "node_policies" {
   policy_arn = each.value
 }
 
+resource "aws_security_group" "nodes" {
+  name   = "${var.name}-eks-nodes-sg"
+  vpc_id = var.vpc_id
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = { Name = "${var.name}-eks-nodes-sg" }
+}
+
 resource "aws_eks_node_group" "this" {
   cluster_name    = aws_eks_cluster.this.name
   node_group_name = "${var.name}-nodes"
