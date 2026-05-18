@@ -69,6 +69,53 @@ ADMIN_BOOTSTRAP_PASSWORD
 
 On AWS, use External Secrets Operator to sync those keys from AWS Secrets Manager into the same Kubernetes Secret name. The pod manifests do not need to change.
 
+## Switching from in-cluster MySQL to RDS
+
+The app services read database connections entirely from env vars — no hardcoded connection strings in the Java code. Swapping to RDS is a config-only change.
+
+### What to provision on AWS
+
+- One RDS MySQL instance (recommended: `db.t3.micro` for staging, `db.t3.medium`+ for production)
+- Four databases on that instance, one per service:
+
+```text
+authdb
+productdb
+inventorydb
+orderdb
+```
+
+- One DB user per service with access scoped to its own database only
+- The RDS instance should be in a private subnet, accessible only from the EKS node security group
+
+### What to change in values-aws.yaml
+
+Replace the local DB URLs with RDS endpoint URLs:
+
+```yaml
+config:
+  AUTH_DB_URL: jdbc:mysql://<rds-endpoint>:3306/authdb
+  PRODUCT_DB_URL: jdbc:mysql://<rds-endpoint>:3306/productdb
+  INVENTORY_DB_URL: jdbc:mysql://<rds-endpoint>:3306/inventorydb
+  ORDER_DB_URL: jdbc:mysql://<rds-endpoint>:3306/orderdb
+```
+
+Disable the in-cluster MySQL dependency:
+
+```yaml
+mysql:
+  enabled: false
+```
+
+Store the four DB passwords in AWS Secrets Manager and sync them into `mobi-secrets` via External Secrets Operator — the pod specs do not need to change.
+
+### What does not change
+
+- All Java service code
+- The Helm chart structure
+- The Kubernetes Secret key names (`AUTH_DB_PASSWORD`, etc.)
+- The ConfigMap key names (`AUTH_DB_URL`, etc.)
+
 ## Ingress
 
 Local uses nginx:
