@@ -97,13 +97,13 @@ helm upgrade --install mobi helm/mobi \
   --namespace "$NAMESPACE" \
   --values helm/mobi/values-local.yaml \
   --wait \
-  --timeout 5m
+  --timeout 10m
 
-kubectl rollout status deployment/auth-service --namespace "$NAMESPACE" --timeout 5m
-kubectl rollout status deployment/product-service --namespace "$NAMESPACE" --timeout 5m
-kubectl rollout status deployment/inventory-service --namespace "$NAMESPACE" --timeout 5m
-kubectl rollout status deployment/order-service --namespace "$NAMESPACE" --timeout 5m
-kubectl rollout status deployment/notification-service --namespace "$NAMESPACE" --timeout 5m
-kubectl rollout status deployment/api-gateway --namespace "$NAMESPACE" --timeout 5m
+kubectl rollout status deployment/auth-service --namespace "$NAMESPACE" --timeout 10m
+kubectl rollout status deployment/product-service --namespace "$NAMESPACE" --timeout 10m
+kubectl rollout status deployment/inventory-service --namespace "$NAMESPACE" --timeout 10m
+kubectl rollout status deployment/order-service --namespace "$NAMESPACE" --timeout 10m
+kubectl rollout status deployment/notification-service --namespace "$NAMESPACE" --timeout 10m
+kubectl rollout status deployment/api-gateway --namespace "$NAMESPACE" --timeout 10m
 
 echo "Mobi Kubernetes deployment is ready"
