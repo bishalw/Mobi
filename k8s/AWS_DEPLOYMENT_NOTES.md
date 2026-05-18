@@ -137,3 +137,111 @@ ingress:
 
 The app should expose only `api-gateway`; service-to-service traffic stays inside Kubernetes Services.
 
+## Networking and VPC
+
+All AWS resources should live in the same VPC:
+
+- EKS cluster in private subnets (nodes not publicly reachable)
+- RDS, ElastiCache, and MSK in private subnets
+- ALB in public subnets (the only public entry point)
+- Security groups: EKS nodes can reach RDS/ElastiCache/MSK; nothing else can
+
+The frontend should be served from **S3 + CloudFront**, not from inside the cluster. Build the React app and upload the `dist/` output to an S3 bucket with CloudFront in front. API calls go to the ALB domain.
+
+## ElastiCache (Redis swap)
+
+Same pattern as RDS — config-only change:
+
+```yaml
+config:
+  REDIS_HOST: <elasticache-endpoint>
+
+redis:
+  enabled: false
+```
+
+Redis is used only for order idempotency keys. ElastiCache in-cluster mode (single node) is sufficient unless you need cross-AZ failover.
+
+## MSK (Kafka swap)
+
+```yaml
+config:
+  KAFKA_BOOTSTRAP_SERVERS: <msk-broker-1>:9092,<msk-broker-2>:9092
+
+kafka:
+  enabled: false
+```
+
+MSK requires IAM or SASL authentication. If using SASL, each service's `application.properties` will need:
+
+```properties
+spring.kafka.properties.security.protocol=SASL_SSL
+spring.kafka.properties.sasl.mechanism=AWS_MSK_IAM
+```
+
+The MSK IAM auth library must be added to each service's `pom.xml`.
+
+## Resource sizing
+
+Minimum viable EKS setup for production:
+
+| Component | Recommendation |
+| --- | --- |
+| EKS node group | 2x `t3.medium` (auto-scaling 2–4) |
+| RDS | `db.t3.micro` (staging), `db.t3.small`+ (prod) |
+| ElastiCache | `cache.t3.micro` single node |
+| MSK | `kafka.t3.small` 2-broker cluster |
+
+Set JVM heap explicitly per service to avoid OOMKilled:
+
+```yaml
+env:
+  JAVA_TOOL_OPTIONS: "-Xms256m -Xmx512m"
+```
+
+## CI/CD pipeline
+
+On merge to `main`:
+
+1. Run `./mvnw test` for each service
+2. Build Docker images tagged with the Git SHA
+3. Push to ECR
+4. Run `helm upgrade` against EKS with the new image tags
+
+GitHub Actions is the natural fit. Required secrets:
+
+```text
+AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY
+AWS_REGION
+AWS_ACCOUNT_ID
+KUBECONFIG   # base64-encoded EKS kubeconfig
+```
+
+## ADMIN_BOOTSTRAP in production
+
+`ADMIN_BOOTSTRAP_ENABLED` should be `false` after the first deploy. The admin user is created on first startup — leaving bootstrap enabled permanently is a security risk if the secret ever rotates to a weak value.
+
+Set it to `false` in `values-aws.yaml` after confirming the admin account exists:
+
+```yaml
+config:
+  ADMIN_BOOTSTRAP_ENABLED: "false"
+```
+
+## TLS
+
+ALB handles TLS termination. Request a certificate in **AWS Certificate Manager** for your domain and reference it in the ingress annotations:
+
+```yaml
+ingress:
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:<region>:<account>:certificate/<id>
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+```
+
+Traffic inside the cluster (service-to-service) stays plain HTTP — TLS is only needed at the public boundary.
+
