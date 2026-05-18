@@ -1,6 +1,15 @@
 # Mobi
 
-A phone store platform built with Spring Boot microservices and a React operations console.
+Mobi is a full-stack phone store platform built to demonstrate production-grade microservices architecture. The backend is a set of independently deployable Spring Boot services communicating through a Spring Cloud Gateway, with asynchronous domain events over Kafka and service-owned MySQL databases. The frontend is a React + TypeScript operations console with role-based access for admins and customers.
+
+The project runs entirely on Kubernetes locally using kind, and is designed to deploy to AWS EKS with infrastructure provisioned by Terraform. Swapping in-cluster dependencies (MySQL, Redis, Kafka) for RDS, ElastiCache, and MSK is a config-only change.
+
+**Key design decisions:**
+- Each service owns its own database. No shared schema, no cross-service joins.
+- Order creation uses an outbox pattern to guarantee Kafka events are published even if the broker is temporarily unavailable.
+- Idempotency keys on order creation prevent duplicate orders from retried requests.
+- JWT authentication is verified at each service boundary, not just at the gateway.
+- All sensitive config flows through Kubernetes Secrets. Non-sensitive config is rendered by a Helm-managed ConfigMap.
 
 ## Architecture
 
