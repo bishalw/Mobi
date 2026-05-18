@@ -1,10 +1,13 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { ShoppingBag, Warehouse, ClipboardList, LogOut, ShoppingCart } from 'lucide-react'
+import { ShoppingBag, Warehouse, ClipboardList, LogOut, ShoppingCart, LayoutDashboard } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useCartStore } from '@/stores/cartStore'
 
 const adminNav = [
+  { to: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
+  { to: '/products', label: 'Products', Icon: ShoppingBag },
   { to: '/inventory', label: 'Inventory', Icon: Warehouse },
+  { to: '/orders', label: 'Orders', Icon: ClipboardList },
 ]
 
 const sharedNav = [
@@ -20,7 +23,7 @@ export default function Sidebar({ onCartOpen }: Props) {
   const { username, role, logout } = useAuthStore()
   const cartCount = useCartStore((s) => s.count())
   const isAdmin = role === 'ADMIN'
-  const nav = isAdmin ? [sharedNav[0], ...adminNav, sharedNav[1]] : sharedNav
+  const nav = isAdmin ? adminNav : sharedNav
   const navigate = useNavigate()
 
   function handleLogout() {

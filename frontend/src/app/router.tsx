@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/authStore'
 import Layout from '@/components/layout/Layout'
 import LoginPage from '@/features/auth/LoginPage'
 import RegisterPage from '@/features/auth/RegisterPage'
+import DashboardPage from '@/features/dashboard/DashboardPage'
 import ProductsPage from '@/features/products/ProductsPage'
 import InventoryPage from '@/features/inventory/InventoryPage'
 import OrdersPage from '@/features/orders/OrdersPage'
@@ -16,6 +17,11 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 function RequireAdmin({ children }: { children: React.ReactNode }) {
   const role = useAuthStore((s) => s.role)
   return role === 'ADMIN' ? <>{children}</> : <Navigate to="/products" replace />
+}
+
+function HomeRedirect() {
+  const role = useAuthStore((s) => s.role)
+  return <Navigate to={role === 'ADMIN' ? '/dashboard' : '/products'} replace />
 }
 
 export const router = createBrowserRouter([
@@ -35,7 +41,8 @@ export const router = createBrowserRouter([
       </RequireAuth>
     ),
     children: [
-      { index: true, element: <Navigate to="/products" replace /> },
+      { index: true, element: <HomeRedirect /> },
+      { path: 'dashboard', element: <RequireAdmin><DashboardPage /></RequireAdmin> },
       { path: 'products', element: <ProductsPage /> },
       { path: 'inventory', element: <RequireAdmin><InventoryPage /></RequireAdmin> },
       { path: 'orders', element: <OrdersPage /> },
