@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE="${SMOKE_BASE_URL:-http://localhost:8080}"
+BASE="${SMOKE_BASE_URL:-http://localhost}"
 ADMIN_USER="${SMOKE_ADMIN_USER:-admin}"
 ADMIN_PASS="${SMOKE_ADMIN_PASS:-adminpass}"
 
