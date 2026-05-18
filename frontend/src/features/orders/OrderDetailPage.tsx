@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { getOrder, cancelOrder, confirmOrder } from '@/api/orders'
 import { useAuthStore } from '@/stores/authStore'
 import { formatCurrency, formatDate } from '@/lib/format'
@@ -35,12 +36,20 @@ export default function OrderDetailPage() {
 
   const cancelMutation = useMutation({
     mutationFn: () => cancelOrder(orderId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['orders', orderId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['orders', orderId] })
+      toast.success('Order cancelled')
+    },
+    onError: () => toast.error('Failed to cancel order'),
   })
 
   const confirmMutation = useMutation({
     mutationFn: () => confirmOrder(orderId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['orders', orderId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['orders', orderId] })
+      toast.success('Order confirmed')
+    },
+    onError: () => toast.error('Failed to confirm order'),
   })
 
   if (isLoading) return <p className="text-sm text-gray-500">Loading…</p>

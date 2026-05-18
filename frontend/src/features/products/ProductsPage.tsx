@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Pencil, Trash2, Plus } from 'lucide-react'
 import { useState } from 'react'
+import toast from 'react-hot-toast'
 import { getProducts, deleteProduct } from '@/api/products'
 import { useAuthStore } from '@/stores/authStore'
 import { formatCurrency, formatDate } from '@/lib/format'
@@ -21,7 +22,11 @@ export default function ProductsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: deleteProduct,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['products'] })
+      toast.success('Product deleted')
+    },
+    onError: () => toast.error('Failed to delete product'),
   })
 
   if (isLoading) return <p className="text-sm text-gray-500">Loading…</p>

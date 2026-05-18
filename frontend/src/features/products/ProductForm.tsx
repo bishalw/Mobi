@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { X } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { createProduct, updateProduct } from '@/api/products'
 import type { ProductResponse } from '@/types'
 
@@ -36,8 +37,10 @@ export default function ProductForm({ product, onClose }: Props) {
       product ? updateProduct(product.id, data) : createProduct(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['products'] })
+      toast.success(product ? 'Product updated' : 'Product created')
       onClose()
     },
+    onError: () => toast.error('Failed to save product'),
   })
 
   return (

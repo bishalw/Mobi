@@ -1,6 +1,7 @@
 import { X, Minus, Plus, Trash2, ShoppingCart } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import { useCartStore } from '@/stores/cartStore'
 import { useAuthStore } from '@/stores/authStore'
 import { createOrder } from '@/api/orders'
@@ -25,8 +26,10 @@ export default function CartDrawer({ open, onClose }: Props) {
     onSuccess: (order) => {
       clear()
       onClose()
+      toast.success('Order placed successfully')
       navigate(`/orders/${order.id}`)
     },
+    onError: () => toast.error('Checkout failed. Some items may be out of stock.'),
   })
 
   if (!open) return null
@@ -104,10 +107,6 @@ export default function CartDrawer({ open, onClose }: Props) {
               <span className="text-sm text-gray-500">Total</span>
               <span className="text-base font-semibold text-gray-900">{formatCurrency(total())}</span>
             </div>
-
-            {checkout.isError && (
-              <p className="text-xs text-red-500">Checkout failed. Some items may be out of stock.</p>
-            )}
 
             <button
               onClick={() => checkout.mutate()}
