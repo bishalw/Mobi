@@ -2,6 +2,8 @@
 
 Spring Boot microservices powering the Mobi platform.
 
+For AWS infrastructure provisioning see [`infra/terraform/`](infra/terraform/README.md).
+
 ## Architecture
 
 ```mermaid

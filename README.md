@@ -80,3 +80,5 @@ The admin account is seeded at startup via `ADMIN_BOOTSTRAP_*` environment varia
 
 - [Backend reference](BACKEND.md) — services, APIs, configuration, Kubernetes, troubleshooting
 - [Frontend reference](frontend/README.md) — stack, structure, running locally, production build
+- [Terraform / AWS infrastructure](infra/terraform/README.md) — modules, staging vs production, deploy sequence
+- [AWS deployment notes](k8s/AWS_DEPLOYMENT_NOTES.md) — app-level changes required for production
