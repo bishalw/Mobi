@@ -25,49 +25,76 @@ export default function RegisterPage() {
   })
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface">
-      <div className="w-full max-w-sm rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
-        <h1 className="mb-6 text-lg font-semibold text-gray-900">Create account</h1>
+    <div className="flex min-h-screen">
+      {/* Left panel */}
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between bg-gray-950 p-12">
+        <div className="text-white text-2xl font-bold tracking-tight">mobi</div>
+        <div>
+          <p className="text-4xl font-bold text-white leading-snug">
+            Join mobi<br />today.
+          </p>
+          <p className="mt-4 text-gray-400 text-sm">
+            Create an account to start browsing,<br />ordering, and tracking your devices.
+          </p>
+        </div>
+        <p className="text-gray-600 text-xs">© 2025 Mobi</p>
+      </div>
 
-        <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-4">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-700">Username</label>
-            <input
-              {...register('username')}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-500 focus:ring-1 focus:ring-gray-500"
-            />
-            {errors.username && <p className="mt-1 text-xs text-red-500">{errors.username.message}</p>}
+      {/* Right panel */}
+      <div className="flex w-full lg:w-1/2 items-center justify-center bg-white px-8 py-12">
+        <div className="w-full max-w-sm">
+          <div className="mb-8">
+            <div className="lg:hidden text-2xl font-bold tracking-tight text-gray-900 mb-6">mobi</div>
+            <h1 className="text-2xl font-bold text-gray-900">Create an account</h1>
+            <p className="mt-1 text-sm text-gray-500">Get started with Mobi in seconds</p>
           </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-700">Password</label>
-            <input
-              {...register('password')}
-              type="password"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-500 focus:ring-1 focus:ring-gray-500"
-            />
-            {errors.password && <p className="mt-1 text-xs text-red-500">{errors.password.message}</p>}
-          </div>
+          <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Username</label>
+              <input
+                {...register('username')}
+                autoComplete="username"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
+                placeholder="Choose a username"
+              />
+              {errors.username && <p className="mt-1.5 text-xs text-red-500">{errors.username.message}</p>}
+            </div>
 
-          {mutation.isError && (
-            <p className="text-xs text-red-500">Registration failed. Username may already exist.</p>
-          )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+              <input
+                {...register('password')}
+                type="password"
+                autoComplete="new-password"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
+                placeholder="Minimum 6 characters"
+              />
+              {errors.password && <p className="mt-1.5 text-xs text-red-500">{errors.password.message}</p>}
+            </div>
 
-          <button
-            type="submit"
-            disabled={mutation.isPending}
-            className="w-full rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50 transition-colors"
-          >
-            {mutation.isPending ? 'Creating…' : 'Create account'}
-          </button>
-        </form>
+            {mutation.isError && (
+              <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3">
+                <p className="text-xs text-red-600">Registration failed. That username may already be taken.</p>
+              </div>
+            )}
 
-        <p className="mt-4 text-center text-xs text-gray-500">
-          Already have an account?{' '}
-          <Link to="/login" className="text-gray-900 underline">
-            Sign in
-          </Link>
-        </p>
+            <button
+              type="submit"
+              disabled={mutation.isPending}
+              className="w-full rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-700 disabled:opacity-50"
+            >
+              {mutation.isPending ? 'Creating account…' : 'Create account'}
+            </button>
+          </form>
+
+          <p className="mt-6 text-center text-sm text-gray-500">
+            Already have an account?{' '}
+            <Link to="/login" className="font-medium text-gray-900 hover:underline">
+              Sign in
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   )

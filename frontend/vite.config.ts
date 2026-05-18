@@ -11,10 +11,10 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/auth': 'http://localhost:8080',
-      '/productapi': 'http://localhost:8080',
-      '/inventoryapi': 'http://localhost:8080',
-      '/orderapi': 'http://localhost:8080',
+      '/auth': 'http://localhost',
+      '/productapi': 'http://localhost',
+      '/inventoryapi': 'http://localhost',
+      '/orderapi': 'http://localhost',
     },
   },
 })

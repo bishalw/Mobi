@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-BASE="http://localhost:8080"
+BASE="http://localhost"
 
 echo "==> Logging in as admin..."
 ADMIN_TOKEN=$(curl -s -X POST "$BASE/auth/login" \
