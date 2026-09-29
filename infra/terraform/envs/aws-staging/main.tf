@@ -20,7 +20,7 @@ provider "aws" {
 }
 
 module "vpc" {
-  source = "../../modules/vpc"
+  source = "../../modules/aws/vpc"
 
   name            = "mobi-staging"
   cidr            = "10.0.0.0/16"
@@ -30,11 +30,11 @@ module "vpc" {
 }
 
 module "ecr" {
-  source = "../../modules/ecr"
+  source = "../../modules/aws/ecr"
 }
 
 module "eks" {
-  source = "../../modules/eks"
+  source = "../../modules/aws/eks"
 
   name               = "mobi-staging"
   vpc_id             = module.vpc.vpc_id
@@ -46,7 +46,7 @@ module "eks" {
 }
 
 module "rds" {
-  source = "../../modules/rds"
+  source = "../../modules/aws/rds"
 
   name                       = "mobi-staging"
   vpc_id                     = module.vpc.vpc_id
@@ -59,7 +59,7 @@ module "rds" {
 }
 
 module "elasticache" {
-  source = "../../modules/elasticache"
+  source = "../../modules/aws/elasticache"
 
   name                       = "mobi-staging"
   vpc_id                     = module.vpc.vpc_id
@@ -69,7 +69,7 @@ module "elasticache" {
 }
 
 module "msk" {
-  source = "../../modules/msk"
+  source = "../../modules/aws/msk"
 
   name                       = "mobi-staging"
   vpc_id                     = module.vpc.vpc_id

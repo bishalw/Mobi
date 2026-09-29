@@ -1,22 +1,31 @@
-# Terraform — Mobi AWS Infrastructure
+# Terraform — Mobi Infrastructure
 
-Provisions all AWS infrastructure for the Mobi platform.
+Provisions the infrastructure Mobi runs on. AWS is the only implemented provider;
+the layout is namespaced by cloud so adding GKE or AKS means adding a sibling
+directory rather than editing anything here. See
+[docs/PORTABILITY.md](../../docs/PORTABILITY.md) for the contract that makes that
+work.
 
 ## Structure
 
 ```
 modules/
-  vpc/            VPC, subnets, NAT gateway, route tables
-  eks/            EKS cluster, node group, IAM roles
-  rds/            RDS MySQL, subnet group, security group
-  elasticache/    ElastiCache Redis, subnet group, security group
-  msk/            MSK Kafka cluster, security group
-  ecr/            ECR repositories for all six services
+  aws/
+    vpc/            VPC, subnets, NAT gateway, route tables
+    eks/            EKS cluster, node group, IAM roles
+    rds/            RDS MySQL, subnet group, security group
+    elasticache/    ElastiCache Redis, subnet group, security group
+    msk/            MSK Kafka cluster, security group
+    ecr/            ECR repositories for all six services
 
 envs/
-  staging/        2-AZ, t3.medium nodes, db.t3.micro, single-AZ RDS
-  production/     3-AZ, t3.large nodes, db.t3.small, multi-AZ RDS
+  aws-staging/      2-AZ, t3.medium nodes, db.t3.micro, single-AZ RDS
+  aws-production/   3-AZ, t3.large nodes, db.t3.small, multi-AZ RDS
 ```
+
+Environment directories are named `<cloud>-<tier>`. `scripts/deploy.sh` derives
+which per-cloud Helm overlay to apply from that prefix, so the naming is load
+bearing.
 
 ## Prerequisites
 
@@ -27,20 +36,30 @@ envs/
 ## Usage
 
 ```bash
-cd envs/staging
-
-terraform init
-terraform plan -var="db_password=<your-password>"
-terraform apply -var="db_password=<your-password>"
+terraform -chdir=envs/aws-staging init
+terraform -chdir=envs/aws-staging plan  -var="db_password=<your-password>"
+terraform -chdir=envs/aws-staging apply -var="db_password=<your-password>"
 ```
 
-After apply, wire the outputs into `helm/mobi/values-aws.yaml`:
+Then render the Helm values from the outputs and deploy. Outputs are **not**
+pasted into a checked-in values file by hand:
 
 ```bash
-terraform output rds_endpoint
-terraform output redis_endpoint
-terraform output kafka_bootstrap
+scripts/render-values.sh aws-staging
+scripts/deploy.sh aws-staging
 ```
+
+## The output contract
+
+Every env directory must emit nine outputs under fixed names —
+`cluster_name`, `registry_prefix`, `db_endpoint`, `db_jdbc_params`,
+`redis_endpoint`, `redis_port`, `redis_ssl_enabled`, `kafka_bootstrap`,
+`kafka_security_protocol`.
+
+`scripts/render-values.sh` reads them by name and refuses to render if any is
+missing, listing all gaps at once. `envs/aws-staging/outputs.tf` is the annotated
+reference copy. Extra outputs beyond the contract are fine —
+`ecr_repository_urls` is one, used for image push.
 
 ## Staging vs Production
 
@@ -62,3 +81,10 @@ Remote state is stored in S3. Each environment writes to its own key:
 mobi-terraform-state/staging/terraform.tfstate
 mobi-terraform-state/production/terraform.tfstate
 ```
+
+These keys predate the `aws-` directory rename and are deliberately left
+unchanged: editing a `backend` key detaches Terraform from existing state, and the
+next `plan` proposes destroying and recreating everything. If you would rather the
+keys match the directory names, change them and run
+`terraform init -migrate-state`. A future cloud will not collide with these — its
+state belongs in that provider's own backend (GCS, Azure Storage).
