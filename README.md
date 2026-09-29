@@ -68,7 +68,7 @@ graph TD
 ./scripts/kind-load-images.sh
 
 # 3. Deploy dependencies and app
-./scripts/k8s-deploy.sh
+./scripts/deploy.sh local
 
 # 4. Start the frontend (separate terminal)
 cd frontend && npm install && npm run dev

@@ -34,5 +34,10 @@ frontend/dist/
 # Local configuration overrides with credentials
 config-repo/*.local.properties
 
+# Helm values rendered from Terraform outputs by scripts/render-values.sh.
+# These carry real endpoints and registry paths, and are cheap to recreate, so
+# Terraform state stays the single source of truth.
+helm/mobi/values-*.generated.yaml
+
 # Local backups
 *.git-backup/

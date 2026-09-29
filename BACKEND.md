@@ -111,7 +111,7 @@ Build service images and load them into kind:
 Deploy MySQL, Redis, Kafka, and the app chart:
 
 ```bash
-./scripts/k8s-deploy.sh
+./scripts/deploy.sh local
 ```
 
 Run the end-to-end smoke test through ingress:
@@ -150,16 +150,76 @@ The app services are deployed through:
 helm/mobi
 ```
 
-Local values:
+Values are layered by `scripts/deploy.sh`, lowest precedence first:
 
 ```text
-helm/mobi/values-local.yaml
+helm/mobi/values.yaml                     neutral base, local defaults
+helm/mobi/values-local.yaml               kind only
+helm/mobi/values-cloud.yaml               any managed cloud
+helm/mobi/values-{aws,gcp,azure}.yaml     ingress flavour and cloud CRDs
+helm/mobi/values-<env>.generated.yaml     endpoints from Terraform, gitignored
 ```
 
-AWS skeleton values:
+Local deploys use the first two. Cloud deploys use the base plus the last three.
+The generated layer is produced by `scripts/render-values.sh <env>` and is never
+hand-edited — see [docs/PORTABILITY.md](docs/PORTABILITY.md).
 
-```text
-helm/mobi/values-aws.yaml
+## Database migrations
+
+Flyway owns the schema for the four services that have one — auth, product,
+inventory, and order. Migrations live in each service's
+`src/main/resources/db/migration` and run automatically at startup.
+
+Hibernate is set to `ddl-auto=validate` everywhere, local included. It no longer
+creates or alters anything; it only asserts that the entities match the schema
+Flyway produced, so drift fails fast at boot instead of being silently patched.
+
+```
+V1__baseline.sql   the schema as ddl-auto previously produced it
+V2__*.sql          changes since
+```
+
+`V1` was generated from the entity mappings by Hibernate's own schema exporter
+rather than written by hand, which is why `validate` accepts it. Databases created
+before Flyway are stamped at V1 and skip it (`spring.flyway.baseline-on-migrate`),
+so existing and fresh databases converge from V2 onward.
+
+To add a change: write `V3__what_it_does.sql`, update the entity to match, and
+restart. Never edit an applied migration — Flyway checksums them and will refuse to
+start.
+
+Flyway migrates *within* a database and does not create one. The four databases and
+their users come from `k8s/infra/mysql/initdb-configmap.yaml` locally, and from the
+`db-bootstrap` pre-install Helm hook on any managed instance — see
+[docs/PORTABILITY.md](docs/PORTABILITY.md).
+
+## Metrics
+
+Every service exposes Prometheus metrics at `/actuator/prometheus`, tagged with
+`application=<service name>`, including HTTP latency histograms with p95/p99.
+Pods carry `prometheus.io/scrape` annotations, so a stock Prometheus scrape config
+discovers them with no CRDs and no per-cloud setup.
+
+These endpoints are deliberately **not** routable from outside the cluster — the
+ingress exposes only `/actuator/health`. Metrics reveal request patterns, JVM
+internals, and the full endpoint inventory.
+
+To read them locally:
+
+```bash
+kubectl port-forward -n mobi deployment/order-service 8085:8085
+curl http://localhost:8085/actuator/prometheus
+```
+
+## Request tracing
+
+The gateway assigns an `X-Correlation-ID` to every inbound request and forwards it;
+each service adopts it into the logging MDC, and order-service propagates it onward
+through Feign. It is printed in every log line and returned on the response, so one
+request can be followed across all six services:
+
+```bash
+kubectl logs -n mobi deployment/order-service | grep "$CORRELATION_ID"
 ```
 
 ## Verification
@@ -311,7 +371,7 @@ kubectl logs -n mobi deployment/product-service -f
 
 ```bash
 ./scripts/kind-load-images.sh
-./scripts/k8s-deploy.sh
+./scripts/deploy.sh local
 ```
 
 ### Reset the local cluster
@@ -320,5 +380,5 @@ kubectl logs -n mobi deployment/product-service -f
 kind delete cluster --name mobi
 ./scripts/kind-up.sh
 ./scripts/kind-load-images.sh
-./scripts/k8s-deploy.sh
+./scripts/deploy.sh local
 ```
