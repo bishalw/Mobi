@@ -1,0 +1,89 @@
+{{- if .Values.dbBootstrap.enabled }}
+{{- $ctx := . }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-bootstrap
+  namespace: {{ include "mobi.namespace" . }}
+  labels:
+    app.kubernetes.io/name: db-bootstrap
+    {{- include "mobi.labels" . | nindent 4 }}
+  annotations:
+    # Runs before the Deployments on every install and upgrade. The services set
+    # ddl-auto=validate and Flyway migrates within an existing database — neither can
+    # create the database itself, so without this the pods crashloop on connect.
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    # Keep a failed Job around for `kubectl logs`; clear it on the next attempt.
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.dbBootstrap.backoffLimit | default 3 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: db-bootstrap
+        app.kubernetes.io/part-of: mobi
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: db-bootstrap
+          image: {{ .Values.dbBootstrap.image | quote }}
+          # Only the Secret is mounted, never the ConfigMap: this is a pre-install
+          # hook, so the chart's own ConfigMap does not exist yet on a first install.
+          # Non-secret values are templated in as env below instead.
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secret.name }}
+          env:
+            - name: MYSQL_HOST
+              value: {{ required "dbBootstrap.host is required when dbBootstrap.enabled is true — it comes from the db_endpoint Terraform output via scripts/render-values.sh" .Values.dbBootstrap.host | quote }}
+            - name: MYSQL_PORT
+              value: {{ .Values.dbBootstrap.port | default 3306 | quote }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              # Credentials go in a defaults file, not on the command line, so they
+              # do not show up in `ps` output inside the container.
+              umask 077
+              cat >/tmp/admin.cnf <<CNF
+              [client]
+              host=${MYSQL_HOST}
+              port=${MYSQL_PORT}
+              user=${MYSQL_ADMIN_USERNAME}
+              password="${MYSQL_ADMIN_PASSWORD}"
+              CNF
+
+              echo "Waiting for ${MYSQL_HOST}:${MYSQL_PORT} to accept connections..."
+              attempt=0
+              until mysqladmin --defaults-extra-file=/tmp/admin.cnf ping --silent; do
+                attempt=$((attempt + 1))
+                if [ "$attempt" -ge 60 ]; then
+                  echo "Database did not become reachable after 3 minutes." >&2
+                  echo "Check that the cluster nodes' security group is allowed inbound on 3306." >&2
+                  exit 1
+                fi
+                sleep 3
+              done
+              echo "Connected."
+
+              # CREATE ... IF NOT EXISTS plus ALTER USER makes this safe to re-run on
+              # every upgrade, and makes the Secret authoritative for the passwords:
+              # rotate the Secret, redeploy, and the database users follow.
+              #
+              # No FLUSH PRIVILEGES — CREATE USER and GRANT already reload the grant
+              # tables, and it needs the RELOAD privilege, which a managed instance's
+              # master user is not always given.
+              mysql --defaults-extra-file=/tmp/admin.cnf <<SQL
+              {{- range .Values.dbBootstrap.databases }}
+              {{- $user := index $ctx.Values.config (printf "%s_DB_USERNAME" .prefix) }}
+              CREATE DATABASE IF NOT EXISTS \`{{ .name }}\`
+                  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+              CREATE USER IF NOT EXISTS '{{ $user }}'@'%' IDENTIFIED BY '${{ printf "{%s_DB_PASSWORD}" .prefix }}';
+              ALTER USER '{{ $user }}'@'%' IDENTIFIED BY '${{ printf "{%s_DB_PASSWORD}" .prefix }}';
+              GRANT ALL PRIVILEGES ON \`{{ .name }}\`.* TO '{{ $user }}'@'%';
+              {{- end }}
+              SQL
+
+              echo "Databases and users are ready."
+{{- end }}

@@ -1,3 +1,10 @@
+# kind overlay. Ingress is inherited from values.yaml unchanged — the base
+# defaults to ingress-nginx, which is what the kind cluster runs.
+#
+# The only thing local needs is patience: images are built on the host and the
+# JVMs start slowly on a laptop with all six services and MySQL, Redis, and Kafka
+# competing for the same cores.
+
 namespaceOverride: mobi
 
 image:
@@ -20,27 +27,4 @@ services:
   notification-service:
     readinessInitialDelaySeconds: 160
     livenessInitialDelaySeconds: 180
-
-ingress:
-  enabled: true
-  className: nginx
-  annotations: {}
-  hosts:
-    - host: ""
-      paths:
-        - path: /actuator
-          service: api-gateway
-          port: 8080
-        - path: /auth
-          service: api-gateway
-          port: 8080
-        - path: /productapi
-          service: api-gateway
-          port: 8080
-        - path: /inventoryapi
-          service: api-gateway
-          port: 8080
-        - path: /orderapi
-          service: api-gateway
-          port: 8080
 

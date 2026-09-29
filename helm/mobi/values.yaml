@@ -1,3 +1,17 @@
+# Neutral base. Defaults here target the local kind cluster and must stay free of
+# any cloud-specific value, so `helm template` works with no overlay at all.
+#
+# Values are layered by scripts/deploy.sh, lowest precedence first:
+#
+#   values.yaml                     this file — structure and local defaults
+#   values-local.yaml               kind only: slower probe delays
+#   values-cloud.yaml               any managed cloud: hardened settings
+#   values-<cloud>.yaml             ingress flavour and cloud CRDs, ~20 lines
+#   values-<env>.generated.yaml     endpoints from `terraform output`, gitignored
+#
+# Endpoints and image registries are never hand-edited. They come from the
+# Terraform output contract via scripts/render-values.sh. See docs/PORTABILITY.md.
+
 namespaceOverride: ""
 
 configMap:
@@ -18,29 +32,35 @@ config:
 
   AUTH_DB_URL: jdbc:mysql://mysql:3306/authdb
   AUTH_DB_USERNAME: auth_user
-  AUTH_JPA_DDL_AUTO: update
+  AUTH_JPA_DDL_AUTO: validate
   AUTH_JPA_SHOW_SQL: "false"
 
   PRODUCT_DB_URL: jdbc:mysql://mysql:3306/productdb
   PRODUCT_DB_USERNAME: product_user
-  PRODUCT_JPA_DDL_AUTO: update
+  PRODUCT_JPA_DDL_AUTO: validate
   PRODUCT_JPA_SHOW_SQL: "false"
 
   INVENTORY_DB_URL: jdbc:mysql://mysql:3306/inventorydb
   INVENTORY_DB_USERNAME: inventory_user
-  INVENTORY_JPA_DDL_AUTO: update
+  INVENTORY_JPA_DDL_AUTO: validate
   INVENTORY_JPA_SHOW_SQL: "false"
 
   ORDER_DB_URL: jdbc:mysql://mysql:3306/orderdb
   ORDER_DB_USERNAME: order_user
-  ORDER_JPA_DDL_AUTO: update
+  ORDER_JPA_DDL_AUTO: validate
   ORDER_JPA_SHOW_SQL: "false"
 
   REDIS_HOST: redis-master
   REDIS_PORT: "6379"
+  REDIS_SSL_ENABLED: "false"
   ORDER_IDEMPOTENCY_TTL_SECONDS: "86400"
 
   KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  # PLAINTEXT locally and on MSK. Managed Kafka that requires auth (Azure Event
+  # Hubs, Confluent Cloud) sets SASL_SSL here via the generated values, and must
+  # also supply KAFKA_SASL_JAAS_CONFIG through the Secret — it carries a credential.
+  KAFKA_SECURITY_PROTOCOL: PLAINTEXT
+  KAFKA_SASL_MECHANISM: PLAIN
   ORDER_EVENTS_TOPIC: order-events
   USER_EVENTS_TOPIC: user-events
   NOTIFICATION_CONSUMER_GROUP: notification-service
@@ -86,6 +106,8 @@ services:
     readinessInitialDelaySeconds: 30
     livenessInitialDelaySeconds: 90
 
+# Routes are application facts, not cloud facts — they are defined once, here.
+# Overlays override className and annotations only, never the path list.
 ingress:
   enabled: true
   className: nginx
@@ -93,7 +115,12 @@ ingress:
   hosts:
     - host: ""
       paths:
-        - path: /actuator
+        # Scoped to /actuator/health, not all of /actuator. The gateway is the only
+        # service reachable from outside the cluster, and actuator now also serves
+        # /actuator/prometheus and /actuator/metrics — request patterns, JVM internals,
+        # and the full endpoint inventory. Those must stay in-cluster; Prometheus
+        # scrapes pods directly. This still covers /health/readiness and /health/liveness.
+        - path: /actuator/health
           service: api-gateway
           port: 8080
         - path: /auth
@@ -108,4 +135,51 @@ ingress:
         - path: /orderapi
           service: api-gateway
           port: 8080
+
+# Creates the four per-service databases and their users on a managed instance.
+#
+# Off locally: the in-cluster Bitnami MySQL already does this from
+# k8s/infra/mysql/initdb-configmap.yaml, which runs inside its own bootstrap.
+# On by default for cloud environments — see values-cloud.yaml.
+#
+# This has to run from inside the cluster. A managed instance sits in a private
+# subnet reachable only from the node security group, so Terraform running on a
+# laptop or in CI cannot connect to issue CREATE DATABASE. Being a Helm hook
+# rather than provider-specific Terraform is also what keeps it cloud-neutral:
+# the same Job works against RDS, Cloud SQL, and Azure MySQL.
+dbBootstrap:
+  enabled: false
+  image: mysql:8.0
+  # From the db_endpoint Terraform output, written by scripts/render-values.sh.
+  host: ""
+  port: 3306
+  backoffLimit: 3
+  # prefix resolves both the username, from config.<PREFIX>_DB_USERNAME, and the
+  # password, from the <PREFIX>_DB_PASSWORD key in the Secret.
+  databases:
+    - prefix: AUTH
+      name: authdb
+    - prefix: PRODUCT
+      name: productdb
+    - prefix: INVENTORY
+      name: inventorydb
+    - prefix: ORDER
+      name: orderdb
+
+metrics:
+  # Annotation-based discovery: works with a stock Prometheus scrape config and needs
+  # no CRDs, so it is portable across kind, EKS, GKE, and AKS. If you run the
+  # Prometheus Operator, set this false and use a ServiceMonitor via extraManifests.
+  podAnnotations: true
+  path: /actuator/prometheus
+
+# Extra container env applied to every service, merged with per-service
+# services.<name>.extraEnv, which wins. Config that all services read belongs in
+# `config` above (it becomes the ConfigMap); this is for per-container settings
+# that are not application config — JVM flags being the usual case.
+extraEnv: {}
+
+# Raw manifests injected by per-cloud overlays — GKE BackendConfig, managed
+# certificates, and the like. Keeps cloud CRDs out of templates/.
+extraManifests: []
 

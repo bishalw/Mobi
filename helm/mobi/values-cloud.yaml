@@ -1,0 +1,30 @@
+# Shared by every managed-cloud environment, on every provider.
+#
+# This holds the settings that differ between "laptop" and "real infrastructure"
+# but NOT between clouds. Keeping them here means a policy change — say, moving
+# off Hibernate auto-DDL — is one edit rather than one edit per cloud.
+#
+# Nothing provider-specific belongs in this file. That goes in values-<cloud>.yaml.
+
+namespaceOverride: mobi
+
+config:
+  # ddl-auto is validate in the base values now that Flyway owns the schema on
+  # every target, local included, so there is nothing cloud-specific to set here.
+
+  # The bootstrap admin exists after the first deploy; leaving this on would let
+  # a restart silently reset the account.
+  ADMIN_BOOTSTRAP_ENABLED: "false"
+
+# A managed instance provisions one database; the app needs four. This creates the
+# missing ones and their users before the services start. `host` arrives from the
+# db_endpoint Terraform output via the generated values.
+dbBootstrap:
+  enabled: true
+
+extraEnv:
+  # Pin the heap rather than letting the JVM size it from the node. This is the
+  # recommendation in k8s/AWS_DEPLOYMENT_NOTES.md; without it a container that
+  # gains a memory limit later gets OOMKilled instead of throwing OutOfMemoryError,
+  # which is much harder to diagnose from the outside.
+  JAVA_TOOL_OPTIONS: "-Xms256m -Xmx512m"

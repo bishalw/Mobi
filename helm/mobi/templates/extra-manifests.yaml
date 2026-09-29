@@ -1,0 +1,22 @@
+{{/*
+Escape hatch for cloud-specific resources the chart itself must stay ignorant of
+— GKE BackendConfig and ManagedCertificate, AGIC health-probe configs, and so on.
+
+Overlays append whole manifests to .Values.extraManifests and the chart renders
+them verbatim. Each entry is run through `tpl`, so templating works inside:
+
+  extraManifests:
+    - apiVersion: cloud.google.com/v1
+      kind: BackendConfig
+      metadata:
+        name: api-gateway
+        namespace: '{{ include "mobi.namespace" . }}'
+
+Keeping these out of the chart is deliberate: templates/ stays vanilla
+Kubernetes, so the same chart deploys to kind, EKS, GKE, and AKS unchanged, and
+adding a cloud never means editing a template.
+*/}}
+{{- range .Values.extraManifests }}
+---
+{{ tpl (toYaml .) $ }}
+{{- end }}

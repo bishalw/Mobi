@@ -33,9 +33,19 @@ provisioning:
       partitions: 1
       replicationFactor: 1
 
-extraConfig: |
-  auto.create.topics.enable=true
-  offsets.topic.replication.factor=1
-  transaction.state.log.replication.factor=1
-  transaction.state.log.min.isr=1
-  group.initial.rebalance.delay.ms=0
+# Key-value map, not the `extraConfig` string block this used to be: chart 32.x renamed
+# the setting to `overrideConfiguration`, and Helm silently ignores unrecognised top-level
+# keys. The old block therefore never reached the broker, which then fell back to Kafka's
+# default offsets.topic.replication.factor of 3.
+#
+# On this single-node cluster that default is fatal in a way that is easy to miss:
+# producing works perfectly, so events accumulate on the topics, but the group coordinator
+# can never create __consumer_offsets with 3 replicas. Every consumer then blocks forever
+# waiting to join a group, no consumer group is ever registered, and nothing is logged as
+# an error anywhere.
+overrideConfiguration:
+  auto.create.topics.enable: "true"
+  offsets.topic.replication.factor: "1"
+  transaction.state.log.replication.factor: "1"
+  transaction.state.log.min.isr: "1"
+  group.initial.rebalance.delay.ms: "0"
