@@ -1,13 +1,20 @@
 package com.mobi.notification.event;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import java.time.LocalDateTime;
 
+// A consumer-side copy of the producer's event, deliberately narrower: this service only
+// needs to know who registered. ignoreUnknown makes that asymmetry safe — auth-service can
+// add fields to the payload without this deserializer rejecting every message.
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class UserEvent {
 
     private String eventId;
     private UserEventType eventType;
     private Long userId;
     private String username;
+    private String email;
     private LocalDateTime occurredAt;
 
     public UserEvent() {}
@@ -23,6 +30,9 @@ public class UserEvent {
 
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
+
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
 
     public LocalDateTime getOccurredAt() { return occurredAt; }
     public void setOccurredAt(LocalDateTime occurredAt) { this.occurredAt = occurredAt; }
