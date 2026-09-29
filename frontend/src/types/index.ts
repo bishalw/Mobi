@@ -7,6 +7,7 @@ export interface LoginRequest {
 export interface RegisterRequest {
   username: string
   password: string
+  email?: string
 }
 
 export interface AuthResponse {
@@ -91,4 +92,55 @@ export interface OrderResponse {
   items: OrderItemResponse[]
   createdAt: string
   updatedAt: string
+}
+
+// Admin
+
+// Shared envelope for every paginated admin list. Both services return this same shape.
+export interface PageResponse<T> {
+  content: T[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
+export interface AdminUser {
+  id: number
+  username: string
+  email?: string | null
+  role: string
+  enabled: boolean
+  createdAt: string
+  lastLoginAt?: string | null
+}
+
+export interface CustomerSummary {
+  userId: number
+  username: string
+  email?: string | null
+  enabled: boolean
+  signedUpAt: string
+  orderCount: number
+  totalSpend: number
+  lastOrderAt?: string | null
+}
+
+export interface AdminOrder {
+  id: number
+  userId: number
+  // Absent when the projection has not yet seen this user.
+  username?: string | null
+  status: OrderStatus
+  totalAmount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface OrderStats {
+  totalOrders: number
+  confirmedOrders: number
+  pendingOrders: number
+  totalRevenue: number
+  distinctCustomers: number
 }

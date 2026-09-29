@@ -8,6 +8,14 @@ import { register as registerUser } from '@/api/auth'
 const schema = z.object({
   username: z.string().min(1, 'Required'),
   password: z.string().min(6, 'Minimum 6 characters'),
+  // Optional, matching the API: accounts predate the field and registration does not
+  // require one. An empty box is sent as undefined rather than "", which would otherwise
+  // collide with any other blank submission on the unique email index.
+  email: z
+    .string()
+    .email('Enter a valid email')
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -59,6 +67,20 @@ export default function RegisterPage() {
                 placeholder="Choose a username"
               />
               {errors.username && <p className="mt-1.5 text-xs text-red-500">{errors.username.message}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Email <span className="font-normal text-gray-400">(optional)</span>
+              </label>
+              <input
+                {...register('email')}
+                type="email"
+                autoComplete="email"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
+                placeholder="you@example.com"
+              />
+              {errors.email && <p className="mt-1.5 text-xs text-red-500">{errors.email.message}</p>}
             </div>
 
             <div>

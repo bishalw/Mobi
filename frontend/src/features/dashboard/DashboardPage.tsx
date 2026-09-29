@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { ShoppingBag, ClipboardList, Clock, AlertTriangle } from 'lucide-react'
 import { getProducts } from '@/api/products'
-import { getAllOrders } from '@/api/orders'
+import { getOrderStats } from '@/api/admin'
 import { getAllInventory } from '@/api/inventory'
 import { formatCurrency } from '@/lib/format'
 import { useAuthStore } from '@/stores/authStore'
@@ -12,20 +12,19 @@ export default function DashboardPage() {
   const username = useAuthStore((s) => s.username)
 
   const { data: products = [] } = useQuery({ queryKey: ['products'], queryFn: getProducts })
-  const { data: orders = [] } = useQuery({ queryKey: ['orders'], queryFn: getAllOrders })
   const { data: inventory = [] } = useQuery({ queryKey: ['inventory'], queryFn: getAllInventory })
+
+  // Counted by the database over every order. These used to be derived in the browser from
+  // a full download of the orders table, which made them correct only while that table was
+  // small enough to send in one response.
+  const { data: stats } = useQuery({ queryKey: ['order-stats'], queryFn: getOrderStats })
 
   const activeProducts = products.filter((p) => p.active).length
   const inactiveProducts = products.length - activeProducts
 
-  const pendingOrders = orders.filter(
-    (o) => o.status === 'PENDING' || o.status === 'INVENTORY_RESERVED'
-  ).length
-  const confirmedOrders = orders.filter((o) => o.status === 'CONFIRMED').length
-
-  const totalRevenue = orders
-    .filter((o) => o.status === 'CONFIRMED')
-    .reduce((sum, o) => sum + o.totalAmount, 0)
+  const pendingOrders = stats?.pendingOrders ?? 0
+  const confirmedOrders = stats?.confirmedOrders ?? 0
+  const totalRevenue = stats?.totalRevenue ?? 0
 
   const lowStockItems = inventory.filter((i) => i.availableQuantity < LOW_STOCK_THRESHOLD)
 

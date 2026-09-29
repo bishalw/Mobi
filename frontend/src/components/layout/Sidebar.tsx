@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { ShoppingBag, Warehouse, ClipboardList, LogOut, ShoppingCart, LayoutDashboard } from 'lucide-react'
+import { ShoppingBag, Warehouse, ClipboardList, LogOut, ShoppingCart, LayoutDashboard, Users, UserSearch } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useCartStore } from '@/stores/cartStore'
 
@@ -8,6 +8,8 @@ const adminNav = [
   { to: '/products', label: 'Products', Icon: ShoppingBag },
   { to: '/inventory', label: 'Inventory', Icon: Warehouse },
   { to: '/orders', label: 'Orders', Icon: ClipboardList },
+  { to: '/users', label: 'Users', Icon: Users },
+  { to: '/customers', label: 'Customers', Icon: UserSearch },
 ]
 
 const sharedNav = [

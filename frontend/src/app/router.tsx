@@ -8,6 +8,8 @@ import ProductsPage from '@/features/products/ProductsPage'
 import InventoryPage from '@/features/inventory/InventoryPage'
 import OrdersPage from '@/features/orders/OrdersPage'
 import OrderDetailPage from '@/features/orders/OrderDetailPage'
+import UsersPage from '@/features/users/UsersPage'
+import CustomersPage from '@/features/customers/CustomersPage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -45,6 +47,8 @@ export const router = createBrowserRouter([
       { path: 'dashboard', element: <RequireAdmin><DashboardPage /></RequireAdmin> },
       { path: 'products', element: <ProductsPage /> },
       { path: 'inventory', element: <RequireAdmin><InventoryPage /></RequireAdmin> },
+      { path: 'users', element: <RequireAdmin><UsersPage /></RequireAdmin> },
+      { path: 'customers', element: <RequireAdmin><CustomersPage /></RequireAdmin> },
       { path: 'orders', element: <OrdersPage /> },
       { path: 'orders/:id', element: <OrderDetailPage /> },
     ],
