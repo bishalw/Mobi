@@ -1,10 +1,14 @@
 package com.mobi.auth.entity;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "user_data")
@@ -13,9 +17,38 @@ public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    // The unique constraint is the real guard against duplicate accounts. The
+    // service-level existence check is only a nicety for a better error message —
+    // two concurrent registrations both pass it, and duplicate rows would make
+    // findByUsername return more than one result, permanently breaking login for
+    // that username.
+    @Column(nullable = false, unique = true)
     private String username;
+
+    @Column(nullable = false)
     private String password;
+
+    @Column(nullable = false)
     private String role;
+
+    // Optional on purpose. Accounts created before this column existed have no address,
+    // and registration does not demand one, so requiring it here would lock out every
+    // existing user. The unique index still prevents two accounts claiming the same
+    // address once one is supplied.
+    @Column(unique = true)
+    private String email;
+
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column
+    private LocalDateTime lastLoginAt;
+
+    // Disabling is the only way to stop an account without deleting it, which matters
+    // because orders reference the user id and a deleted row would orphan them.
+    @Column(nullable = false)
+    private boolean enabled = true;
 
     public User() {
     }
@@ -24,6 +57,16 @@ public class User {
         this.username = username;
         this.password = password;
         this.role = role;
+    }
+
+    // Stamped here rather than in the service so that every path that creates a user —
+    // registration, the bootstrap admin, anything added later — records a signup time
+    // without having to remember to.
+    @PrePersist
+    void stampCreatedAt() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
     }
 
     public Long getId() {
@@ -56,5 +99,37 @@ public class User {
 
     public void setRole(String role) {
         this.role = role;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getLastLoginAt() {
+        return lastLoginAt;
+    }
+
+    public void setLastLoginAt(LocalDateTime lastLoginAt) {
+        this.lastLoginAt = lastLoginAt;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
     }
 }

@@ -24,7 +24,8 @@ public class UserEventPublisher {
     }
 
     public void publish(UserEventType eventType, User user) {
-        UserEvent event = new UserEvent(eventType, user.getId(), user.getUsername());
+        UserEvent event = new UserEvent(eventType, user.getId(), user.getUsername(), user.getEmail(),
+                user.getRole(), user.isEnabled(), user.getCreatedAt());
         try {
             outboxEventRepository.save(new OutboxEvent(
                     userEventsTopic,
