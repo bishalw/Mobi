@@ -28,3 +28,29 @@ extraEnv:
   # gains a memory limit later gets OOMKilled instead of throwing OutOfMemoryError,
   # which is much harder to diagnose from the outside.
   JAVA_TOOL_OPTIONS: "-Xms256m -Xmx512m"
+
+# Two replicas is the floor, not a target: one replica means every rollout and
+# every node drain is a gap in service, regardless of what the autoscaler does
+# above this number.
+replicaCount: 2
+
+# Request equals limit for memory, sized against the pinned heap above. -Xmx512m
+# plus metaspace, code cache, thread stacks and direct buffers lands comfortably
+# inside 1Gi, and matching the two means the scheduler reserves exactly what the
+# container is allowed to use instead of overcommitting the node.
+resources:
+  requests:
+    cpu: 250m
+    memory: 1Gi
+  limits:
+    memory: 1Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 1

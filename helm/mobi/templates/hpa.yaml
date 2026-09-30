@@ -1,0 +1,47 @@
+{{- /*
+Horizontal autoscaling, off by default.
+
+Scaling on CPU *utilization* is a percentage of the container's CPU request, not
+of the node — so an HPA attached to a pod with no CPU request has nothing to take
+a percentage of and never scales. The request in `resources` is what makes this
+work, which is why the two ship together.
+
+Requires metrics-server in the cluster. GKE and AKS include it; EKS and kind do
+not, which is why this stays disabled in the base values and is switched on only
+by values-cloud.yaml.
+*/}}
+{{- range $name, $svc := .Values.services }}
+{{- $auto := merge (dict) (default (dict) $svc.autoscaling) (default (dict) $.Values.autoscaling) }}
+{{- if $auto.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $name }}
+  namespace: {{ include "mobi.namespace" $ }}
+  labels:
+    app.kubernetes.io/name: {{ $name }}
+    {{- include "mobi.labels" $ | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $name }}
+  minReplicas: {{ default 2 $auto.minReplicas }}
+  maxReplicas: {{ default 6 $auto.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ default 70 $auto.targetCPUUtilizationPercentage }}
+  behavior:
+    scaleDown:
+      {{- /* These JVMs take 30-120s before a readiness probe passes, so a pod
+             removed too eagerly is expensive to get back. A five-minute window
+             stops the autoscaler reacting to a brief dip and then paying that
+             startup cost again a minute later. */}}
+      stabilizationWindowSeconds: {{ default 300 $auto.scaleDownStabilizationSeconds }}
+---
+{{- end }}
+{{- end }}

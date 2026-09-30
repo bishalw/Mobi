@@ -1,0 +1,28 @@
+{{- /*
+Disruption budgets, off by default.
+
+maxUnavailable rather than minAvailable on purpose. `minAvailable: 1` against a
+single-replica Deployment permits zero voluntary evictions, so a node drain hangs
+forever waiting for a pod that can never be moved — the budget stops being a
+safety rail and becomes an outage during routine maintenance. maxUnavailable: 1
+degrades honestly: it protects a multi-replica service and is a no-op on one.
+*/}}
+{{- range $name, $svc := .Values.services }}
+{{- $pdb := merge (dict) (default (dict) $svc.podDisruptionBudget) (default (dict) $.Values.podDisruptionBudget) }}
+{{- if $pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $name }}
+  namespace: {{ include "mobi.namespace" $ }}
+  labels:
+    app.kubernetes.io/name: {{ $name }}
+    {{- include "mobi.labels" $ | nindent 4 }}
+spec:
+  maxUnavailable: {{ default 1 $pdb.maxUnavailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}
+---
+{{- end }}
+{{- end }}
