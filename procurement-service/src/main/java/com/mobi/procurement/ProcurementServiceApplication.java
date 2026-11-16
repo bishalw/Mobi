@@ -1,0 +1,14 @@
+package com.mobi.procurement;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
+
+@SpringBootApplication
+@EnableScheduling
+public class ProcurementServiceApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(ProcurementServiceApplication.class, args);
+    }
+}
