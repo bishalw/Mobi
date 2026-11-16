@@ -7,13 +7,20 @@ import { register as registerUser } from '@/api/auth'
 
 const schema = z.object({
   username: z.string().min(1, 'Required'),
-  password: z.string().min(6, 'Minimum 6 characters'),
+  password: z.string().min(8, 'Minimum 8 characters').max(128, 'Maximum 128 characters'),
   // Optional, matching the API: accounts predate the field and registration does not
   // require one. An empty box is sent as undefined rather than "", which would otherwise
   // collide with any other blank submission on the unique email index.
   email: z
     .string()
     .email('Enter a valid email')
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
+  // Optional, for order texts. International format so it can go straight to an SMS
+  // provider: plus sign, country code, number, no spaces.
+  phone: z
+    .string()
+    .regex(/^\+[1-9]\d{7,14}$/, 'Use international format, e.g. +15551234567')
     .optional()
     .or(z.literal('').transform(() => undefined)),
 })
@@ -84,13 +91,27 @@ export default function RegisterPage() {
             </div>
 
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Mobile number <span className="font-normal text-gray-400">(optional, for order texts)</span>
+              </label>
+              <input
+                {...register('phone')}
+                type="tel"
+                autoComplete="tel"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
+                placeholder="+15551234567"
+              />
+              {errors.phone && <p className="mt-1.5 text-xs text-red-500">{errors.phone.message}</p>}
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
               <input
                 {...register('password')}
                 type="password"
                 autoComplete="new-password"
                 className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
-                placeholder="Minimum 6 characters"
+                placeholder="Minimum 8 characters"
               />
               {errors.password && <p className="mt-1.5 text-xs text-red-500">{errors.password.message}</p>}
             </div>

@@ -8,6 +8,7 @@ export interface RegisterRequest {
   username: string
   password: string
   email?: string
+  phone?: string
 }
 
 export interface AuthResponse {
@@ -16,6 +17,8 @@ export interface AuthResponse {
   userId: number
   username: string
   role: string
+  // Seconds until the access token expires.
+  expiresIn: number
 }
 
 export interface RegisterResponse {
@@ -45,25 +48,42 @@ export interface ProductResponse {
 }
 
 // Inventory
-export interface CreateInventoryRequest {
-  productId: number
-  availableQuantity: number
-  warehouseLocation?: string
-}
-
 export interface InventoryResponse {
   id: number
   productId: number
   availableQuantity: number
   reservedQuantity: number
   warehouseLocation?: string
+  // At or below this the product is low on stock; 0 means no alert.
+  reorderLevel: number
+  lowStock: boolean
   version: number
   createdAt: string
   updatedAt: string
 }
 
+export type AdjustmentReason = 'INITIAL' | 'RECEIVED' | 'DAMAGED' | 'LOST' | 'COUNT_CORRECTION'
+
+export interface StockAdjustment {
+  id: number
+  productId: number
+  quantityDelta: number
+  reason: AdjustmentReason
+  note?: string | null
+  referenceType?: string | null
+  referenceId?: string | null
+  createdBy: string
+  createdAt: string
+  availableAfter: number
+}
+
+export interface StockAdjustmentResult {
+  item: InventoryResponse
+  adjustment: StockAdjustment
+}
+
 // Orders
-export type OrderStatus = 'PENDING' | 'INVENTORY_RESERVED' | 'CONFIRMED' | 'CANCELLED'
+export type OrderStatus = 'PENDING' | 'INVENTORY_RESERVED' | 'CONFIRMED' | 'CANCELLED' | 'REFUNDED'
 
 export interface CreateOrderItemRequest {
   productId: number
@@ -90,6 +110,29 @@ export interface OrderResponse {
   status: OrderStatus
   totalAmount: number
   items: OrderItemResponse[]
+  paymentId?: string | null
+  // A refund also returned the items to stock.
+  restocked?: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type PaymentStatus = 'PROCESSING' | 'SUCCEEDED' | 'DECLINED' | 'REFUNDED'
+
+export interface PaymentResponse {
+  paymentId: string
+  orderId: number
+  userId: number
+  status: PaymentStatus
+  amount: number
+  currency: string
+  provider: string
+  cardBrand: string | null
+  cardLast4: string | null
+  failureCode: string | null
+  failureMessage: string | null
+  refundReason: string | null
+  refundedAt: string | null
   createdAt: string
   updatedAt: string
 }
@@ -113,6 +156,10 @@ export interface AdminUser {
   enabled: boolean
   createdAt: string
   lastLoginAt?: string | null
+  // Set while locked out after too many wrong passwords.
+  lockedUntil?: string | null
+  // The supplier a SUPPLIER account acts for.
+  supplierId?: number | null
 }
 
 export interface CustomerSummary {
@@ -143,4 +190,114 @@ export interface OrderStats {
   pendingOrders: number
   totalRevenue: number
   distinctCustomers: number
+}
+
+// --- Procurement (procurement-service) ---------------------------------------------
+
+export interface Supplier {
+  id: number
+  name: string
+  contactEmail: string
+  active: boolean
+  createdAt: string
+}
+
+export interface SupplierProduct {
+  productId: number
+  supplierSku?: string | null
+  // Admins only.
+  unitCost?: number | null
+}
+
+export type PurchaseOrderStatus =
+  | 'DRAFT'
+  | 'SENT'
+  | 'ACCEPTED'
+  | 'REJECTED'
+  | 'SHIPPED'
+  | 'PARTIALLY_RECEIVED'
+  | 'RECEIVED'
+  | 'CANCELLED'
+
+export type PurchaseOrderAction = 'EDIT' | 'SEND' | 'CANCEL' | 'ACCEPT' | 'REJECT' | 'SHIP' | 'RECEIVE' | 'CLOSE'
+
+// Costs (total, unitCost, lineTotal) are left out for warehouse users; createdBy for suppliers.
+export interface PurchaseOrderSummary {
+  id: number
+  poNumber: string
+  supplierId: number
+  supplierName?: string
+  status: PurchaseOrderStatus
+  expectedDate?: string
+  // From the latest shipment notice.
+  expectedArrival?: string
+  lineCount: number
+  unitsOrdered: number
+  unitsOutstanding: number
+  total?: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PurchaseOrderLine {
+  id: number
+  productId: number
+  supplierSku?: string
+  quantityOrdered: number
+  unitCost?: number
+  lineTotal?: number
+  quantityShipped: number
+  quantityReceived: number
+  quantityDamaged: number
+  outstanding: number
+}
+
+export interface ShipmentNotice {
+  id: number
+  carrier: string
+  trackingNumber?: string
+  expectedArrival?: string
+  createdBy?: string
+  createdAt: string
+  lines: { poLineId: number; productId: number; quantityShipped: number }[]
+}
+
+export interface Receipt {
+  id: number
+  receivedBy?: string
+  receivedAt: string
+  note?: string
+  lines: { poLineId: number; productId: number; quantityGood: number; quantityDamaged: number }[]
+}
+
+export interface PurchaseOrder {
+  id: number
+  poNumber: string
+  supplierId: number
+  supplierName?: string
+  status: PurchaseOrderStatus
+  statusNote?: string
+  expectedDate?: string
+  notes?: string
+  createdBy?: string
+  createdAt: string
+  updatedAt: string
+  sentAt?: string
+  acceptedAt?: string
+  rejectedAt?: string
+  cancelledAt?: string
+  closedAt?: string
+  total?: number
+  lines: PurchaseOrderLine[]
+  shipments: ShipmentNotice[]
+  receipts: Receipt[]
+  // What the signed-in user can do next.
+  actions: PurchaseOrderAction[]
+}
+
+export interface PurchaseOrderRequest {
+  supplierId: number
+  expectedDate?: string | null
+  notes?: string | null
+  lines: { productId: number; quantity: number; unitCost?: number | null }[]
 }

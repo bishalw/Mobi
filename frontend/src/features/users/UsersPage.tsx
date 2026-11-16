@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Search, ShieldCheck, User as UserIcon, Ban, CheckCircle2 } from 'lucide-react'
+import { Search, ShieldCheck, User as UserIcon, Ban, CheckCircle2, Lock, LockOpen, Warehouse, Truck } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { getUsers, updateUserRole, updateUserStatus } from '@/api/admin'
+import { getUsers, unlockUser, updateUserRole, updateUserStatus } from '@/api/admin'
 import { formatDate } from '@/lib/format'
 import { useAuthStore } from '@/stores/authStore'
 import type { AdminUser } from '@/types'
+import { ROLES, asRole, roleLabel, type Role } from '@/lib/roles'
 
 const PAGE_SIZE = 25
 
@@ -35,10 +36,12 @@ export default function UsersPage() {
   }
 
   const roleMutation = useMutation({
-    mutationFn: ({ id, role }: { id: number; role: string }) => updateUserRole(id, role),
+    mutationFn: ({ id, role, supplierId }: { id: number; role: string; supplierId?: number }) =>
+      updateUserRole(id, role, supplierId),
     onSuccess: (user) => {
       invalidate()
-      toast.success(`${user.username} is now ${user.role}`)
+      const label = asRole(user.role) ? roleLabel[asRole(user.role)!] : user.role
+      toast.success(`${user.username} is now ${label}. They need to sign in again.`)
     },
     onError: (err) => toast.error(apiMessage(err, 'Could not change role')),
   })
@@ -50,6 +53,15 @@ export default function UsersPage() {
       toast.success(`${user.username} ${user.enabled ? 'enabled' : 'disabled'}`)
     },
     onError: (err) => toast.error(apiMessage(err, 'Could not change account status')),
+  })
+
+  const unlockMutation = useMutation({
+    mutationFn: (id: number) => unlockUser(id),
+    onSuccess: (user) => {
+      invalidate()
+      toast.success(`${user.username} can sign in again`)
+    },
+    onError: (err) => toast.error(apiMessage(err, 'Could not unlock account')),
   })
 
   const users = data?.content ?? []
@@ -117,9 +129,10 @@ export default function UsersPage() {
                 key={user.id}
                 user={user}
                 isSelf={user.id === currentUserId}
-                busy={roleMutation.isPending || statusMutation.isPending}
-                onRoleChange={(role) => roleMutation.mutate({ id: user.id, role })}
+                busy={roleMutation.isPending || statusMutation.isPending || unlockMutation.isPending}
+                onRoleChange={(role, supplierId) => roleMutation.mutate({ id: user.id, role, supplierId })}
                 onStatusChange={(enabled) => statusMutation.mutate({ id: user.id, enabled })}
+                onUnlock={() => unlockMutation.mutate(user.id)}
               />
             ))}
           </tbody>
@@ -157,12 +170,36 @@ interface RowProps {
   user: AdminUser
   isSelf: boolean
   busy: boolean
-  onRoleChange: (role: string) => void
+  onRoleChange: (role: Role, supplierId?: number) => void
   onStatusChange: (enabled: boolean) => void
+  onUnlock: () => void
 }
 
-function UserRow({ user, isSelf, busy, onRoleChange, onStatusChange }: RowProps) {
-  const isAdmin = user.role === 'ADMIN'
+const roleBadge: Record<Role, { style: string; Icon: typeof UserIcon }> = {
+  ADMIN: { style: 'bg-indigo-100 text-indigo-700', Icon: ShieldCheck },
+  WAREHOUSE: { style: 'bg-sky-100 text-sky-700', Icon: Warehouse },
+  SUPPLIER: { style: 'bg-orange-100 text-orange-700', Icon: Truck },
+  USER: { style: 'bg-gray-100 text-gray-600', Icon: UserIcon },
+}
+
+function UserRow({ user, isSelf, busy, onRoleChange, onStatusChange, onUnlock }: RowProps) {
+  const role = asRole(user.role)
+  const badge = roleBadge[role ?? 'USER']
+
+  function changeRole(next: Role) {
+    if (next === role) return
+    if (next === 'SUPPLIER') {
+      // Until supplier management exists (procurement phase 3) the id is entered by hand;
+      // 1 is the seeded "Mobi Distribution".
+      const answer = window.prompt('Supplier id this account acts for', String(user.supplierId ?? 1))
+      const supplierId = Number(answer)
+      if (!answer || !Number.isInteger(supplierId) || supplierId < 1) return
+      onRoleChange(next, supplierId)
+      return
+    }
+    onRoleChange(next)
+  }
+  const isLocked = !!user.lockedUntil
 
   return (
     <tr className={`hover:bg-gray-50 ${user.enabled ? '' : 'bg-gray-50/60'}`}>
@@ -174,13 +211,12 @@ function UserRow({ user, isSelf, busy, onRoleChange, onStatusChange }: RowProps)
       </td>
       <td className="px-4 py-3 text-gray-500">{user.email ?? <span className="text-gray-300">—</span>}</td>
       <td className="px-4 py-3">
-        <span
-          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
-            isAdmin ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'
-          }`}
-        >
-          {isAdmin ? <ShieldCheck size={11} /> : <UserIcon size={11} />}
-          {user.role}
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${badge.style}`}>
+          <badge.Icon size={11} />
+          {role ? roleLabel[role] : user.role}
+          {role === 'SUPPLIER' && user.supplierId != null && (
+            <span className="font-normal opacity-70">#{user.supplierId}</span>
+          )}
         </span>
       </td>
       <td className="px-4 py-3">
@@ -191,6 +227,15 @@ function UserRow({ user, isSelf, busy, onRoleChange, onStatusChange }: RowProps)
         >
           {user.enabled ? 'Active' : 'Disabled'}
         </span>
+        {isLocked && (
+          <span
+            title={`Too many wrong passwords. Locked until ${formatDate(user.lockedUntil!)}`}
+            className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"
+          >
+            <Lock size={10} />
+            Locked
+          </span>
+        )}
       </td>
       <td className="px-4 py-3 text-xs text-gray-500">{formatDate(user.createdAt)}</td>
       <td className="px-4 py-3 text-xs text-gray-400">
@@ -198,17 +243,35 @@ function UserRow({ user, isSelf, busy, onRoleChange, onStatusChange }: RowProps)
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center justify-end gap-2">
-          {/* Both actions are hidden for your own row. The server refuses them anyway —
+          {/* Unlocking is allowed on any row, including your own (another admin may be
+              doing it for you). */}
+          {isLocked && (
+            <button
+              onClick={onUnlock}
+              disabled={busy}
+              className="inline-flex items-center gap-1 rounded-md border border-amber-200 px-2.5 py-1 text-xs text-amber-700 hover:bg-amber-50 disabled:opacity-40"
+            >
+              <LockOpen size={11} />
+              Unlock
+            </button>
+          )}
+          {/* Role and status actions are hidden for your own row. The server refuses them anyway —
               this just avoids offering a button that can only fail. */}
           {!isSelf && (
             <>
-              <button
-                onClick={() => onRoleChange(isAdmin ? 'USER' : 'ADMIN')}
+              <select
+                aria-label={`Role for ${user.username}`}
+                value={role ?? ''}
+                onChange={(e) => changeRole(e.target.value as Role)}
                 disabled={busy}
-                className="rounded-md border border-gray-200 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+                className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40"
               >
-                {isAdmin ? 'Make user' : 'Make admin'}
-              </button>
+                {ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {roleLabel[r]}
+                  </option>
+                ))}
+              </select>
               <button
                 onClick={() => onStatusChange(!user.enabled)}
                 disabled={busy}

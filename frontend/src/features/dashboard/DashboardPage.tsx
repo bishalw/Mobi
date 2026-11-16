@@ -6,7 +6,6 @@ import { getAllInventory } from '@/api/inventory'
 import { formatCurrency } from '@/lib/format'
 import { useAuthStore } from '@/stores/authStore'
 
-const LOW_STOCK_THRESHOLD = 5
 
 export default function DashboardPage() {
   const username = useAuthStore((s) => s.username)
@@ -26,7 +25,8 @@ export default function DashboardPage() {
   const confirmedOrders = stats?.confirmedOrders ?? 0
   const totalRevenue = stats?.totalRevenue ?? 0
 
-  const lowStockItems = inventory.filter((i) => i.availableQuantity < LOW_STOCK_THRESHOLD)
+  // Each product's own reorder level decides "low"; an empty shelf always counts.
+  const lowStockItems = inventory.filter((i) => i.lowStock || i.availableQuantity === 0)
 
   const productMap = new Map(products.map((p) => [p.id, p]))
 

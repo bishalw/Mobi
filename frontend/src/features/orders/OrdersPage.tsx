@@ -4,21 +4,8 @@ import toast from 'react-hot-toast'
 import { getAllOrders, getOrdersByUser, cancelOrder } from '@/api/orders'
 import { useAuthStore } from '@/stores/authStore'
 import { formatCurrency, formatDate } from '@/lib/format'
-import type { OrderStatus } from '@/types'
+import { orderStatusLabel as statusLabel, orderStatusStyle as statusStyle } from './orderStatus'
 
-const statusStyle: Record<OrderStatus, string> = {
-  PENDING: 'bg-gray-100 text-gray-600',
-  INVENTORY_RESERVED: 'bg-amber-100 text-amber-700',
-  CONFIRMED: 'bg-green-100 text-green-700',
-  CANCELLED: 'bg-red-100 text-red-600',
-}
-
-const statusLabel: Record<OrderStatus, string> = {
-  PENDING: 'Pending',
-  INVENTORY_RESERVED: 'Reserved',
-  CONFIRMED: 'Confirmed',
-  CANCELLED: 'Cancelled',
-}
 
 export default function OrdersPage() {
   const { role, userId } = useAuthStore()

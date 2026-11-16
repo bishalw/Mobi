@@ -2,8 +2,10 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation } from '@tanstack/react-query'
+import { isAxiosError } from 'axios'
 import { Link, useNavigate } from 'react-router-dom'
 import { login } from '@/api/auth'
+import DevUserSwitcher from '@/components/DevUserSwitcher'
 import { useAuthStore } from '@/stores/authStore'
 
 const schema = z.object({
@@ -12,6 +14,19 @@ const schema = z.object({
 })
 
 type FormValues = z.infer<typeof schema>
+
+// The server's message is shown for lockout, suspension and rate limiting, because
+// each tells the user what to do next. A plain wrong password stays generic.
+function loginErrorMessage(err: unknown): string {
+  if (isAxiosError(err)) {
+    const status = err.response?.status
+    const message = (err.response?.data as { message?: string } | undefined)?.message
+    if (status === 423 && message) return message
+    if (status === 403) return 'This account has been suspended. Contact support.'
+    if (status === 429) return 'Too many sign-in attempts from this network. Wait a minute and try again.'
+  }
+  return 'Invalid username or password. Please try again.'
+}
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -80,7 +95,7 @@ export default function LoginPage() {
 
             {mutation.isError && (
               <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3">
-                <p className="text-xs text-red-600">Invalid username or password. Please try again.</p>
+                <p className="text-xs text-red-600">{loginErrorMessage(mutation.error)}</p>
               </div>
             )}
 
@@ -99,6 +114,10 @@ export default function LoginPage() {
               Create one
             </Link>
           </p>
+
+          <div className="mt-6">
+            <DevUserSwitcher />
+          </div>
         </div>
       </div>
     </div>
