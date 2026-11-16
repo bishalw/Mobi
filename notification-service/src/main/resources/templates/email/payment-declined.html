@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/layout :: layout(~{::section})}">
+<body>
+<section>
+    <h1 style="font-size:22px;margin:0 0 12px;">Payment declined</h1>
+    <p style="margin:0 0 12px;">Your payment for order <strong th:text="|#${orderId}|">#1</strong> did not go through<span th:if="${failureMessage}" th:text="': ' + ${failureMessage}"></span></p>
+    <p style="margin:0;">Your items are still reserved for a few minutes. Open the order in Mobi and try another card.</p>
+</section>
+</body>
+</html>

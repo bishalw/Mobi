@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/layout :: layout(~{::section})}">
+<body>
+<section>
+    <h1 style="font-size:22px;margin:0 0 12px;">Order cancelled</h1>
+    <p style="margin:0 0 12px;">Order <strong th:text="|#${orderId}|">#1</strong> has been cancelled and its items released.</p>
+    <p style="margin:0;color:#52525b;">If you were charged, the refund is on its way and you will receive a separate confirmation.</p>
+</section>
+</body>
+</html>

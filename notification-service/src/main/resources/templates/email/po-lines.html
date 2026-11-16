@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<!--/* Products and quantities on a purchase order. Expects `lines` (productId, name, quantityOrdered, quantityShipped) and `qty` naming the quantity to show. */-->
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<table th:fragment="lines(qty)" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 0;border-collapse:collapse;font-size:14px;">
+    <tr th:each="line : ${lines}">
+        <td style="padding:8px 0;border-top:1px solid #e4e4e7;" th:text="${line.name} ?: |Product #${line.productId}|">Pixel 10 Pro</td>
+        <td style="padding:8px 0;border-top:1px solid #e4e4e7;text-align:right;" th:text="|× ${line.get(qty)}|">× 10</td>
+    </tr>
+</table>
+</body>
+</html>

@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/layout :: layout(~{::section})}">
+<body>
+<section>
+    <h1 style="font-size:22px;margin:0 0 12px;">New purchase order <span th:text="${poNumber}">PO-000001</span></h1>
+    <p style="margin:0;">Hello <span th:text="${supplierName}">supplier</span>, Mobi has sent you a purchase order. Sign in to the supplier portal to accept it with a delivery date, or reject it.</p>
+    <table th:replace="~{email/po-lines :: lines('quantityOrdered')}"></table>
+</section>
+</body>
+</html>

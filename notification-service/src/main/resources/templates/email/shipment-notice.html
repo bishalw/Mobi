@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/layout :: layout(~{::section})}">
+<body>
+<section>
+    <h1 style="font-size:22px;margin:0 0 12px;">Inbound shipment for <span th:text="${poNumber}">PO-000001</span></h1>
+    <p style="margin:0;"><strong th:text="${supplierName}">The supplier</strong> says these are on their way. Count them in on the Receiving page when they arrive; stock only changes when you do.</p>
+    <table th:replace="~{email/po-lines :: lines('quantityShipped')}"></table>
+</section>
+</body>
+</html>

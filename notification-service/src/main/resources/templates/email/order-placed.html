@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/layout :: layout(~{::section})}">
+<body>
+<section>
+    <h1 style="font-size:22px;margin:0 0 12px;">Your items are reserved</h1>
+    <p style="margin:0;">Hi <span th:text="${username}">there</span>, we are holding the stock for order <strong th:text="|#${orderId}|">#1</strong>. Complete payment to confirm it; unpaid reservations are released after a short while.</p>
+    <table th:replace="~{email/items :: items}"></table>
+</section>
+</body>
+</html>
