@@ -20,10 +20,13 @@ public class UserOutboxPublisher {
     private final KafkaTemplate<String, UserEvent> kafkaTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
     private final Duration retention;
+    private final OutboxTracing outboxTracing;
 
     public UserOutboxPublisher(OutboxEventRepository outboxEventRepository,
                                KafkaTemplate<String, UserEvent> kafkaTemplate,
-                               @Value("${outbox.retention-days:7}") long retentionDays) {
+                               @Value("${outbox.retention-days:7}") long retentionDays,
+                               OutboxTracing outboxTracing) {
+        this.outboxTracing = outboxTracing;
         this.outboxEventRepository = outboxEventRepository;
         this.kafkaTemplate = kafkaTemplate;
         this.retention = Duration.ofDays(retentionDays);
@@ -35,7 +38,7 @@ public class UserOutboxPublisher {
         for (OutboxEvent event : outboxEventRepository.findTop50ByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING)) {
             try {
                 UserEvent payload = objectMapper.readValue(event.getPayloadJson(), UserEvent.class);
-                kafkaTemplate.send(event.getTopic(), event.getEventKey(), payload).get(5, TimeUnit.SECONDS);
+                outboxTracing.runInTrace(event.getTraceparent(), "outbox publish " + event.getTopic(), () -> send(event, payload));
                 event.markPublished();
             } catch (Exception exp) {
                 event.markFailed(exp.getMessage());
@@ -50,5 +53,16 @@ public class UserOutboxPublisher {
                 OutboxStatus.PUBLISHED,
                 LocalDateTime.now().minus(retention)
         );
+    }
+
+    private void send(OutboxEvent event, UserEvent payload) {
+        try {
+            kafkaTemplate.send(event.getTopic(), event.getEventKey(), payload).get(5, TimeUnit.SECONDS);
+        } catch (InterruptedException exp) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while publishing outbox event " + event.getId(), exp);
+        } catch (Exception exp) {
+            throw new IllegalStateException(exp.getMessage(), exp);
+        }
     }
 }

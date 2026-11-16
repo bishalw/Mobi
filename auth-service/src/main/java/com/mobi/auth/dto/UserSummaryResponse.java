@@ -16,6 +16,10 @@ public class UserSummaryResponse {
     private boolean enabled;
     private LocalDateTime createdAt;
     private LocalDateTime lastLoginAt;
+    // Set while the account is locked out after too many wrong passwords; null otherwise.
+    private LocalDateTime lockedUntil;
+    // The supplier a SUPPLIER account acts for; null for other roles.
+    private Long supplierId;
 
     public UserSummaryResponse() {
     }
@@ -32,7 +36,7 @@ public class UserSummaryResponse {
     }
 
     public static UserSummaryResponse from(User user) {
-        return new UserSummaryResponse(
+        UserSummaryResponse response = new UserSummaryResponse(
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),
@@ -41,6 +45,25 @@ public class UserSummaryResponse {
                 user.getCreatedAt(),
                 user.getLastLoginAt()
         );
+        response.setLockedUntil(user.isLocked(LocalDateTime.now()) ? user.getLockedUntil() : null);
+        response.setSupplierId(user.getSupplierId());
+        return response;
+    }
+
+    public LocalDateTime getLockedUntil() {
+        return lockedUntil;
+    }
+
+    public void setLockedUntil(LocalDateTime lockedUntil) {
+        this.lockedUntil = lockedUntil;
+    }
+
+    public Long getSupplierId() {
+        return supplierId;
+    }
+
+    public void setSupplierId(Long supplierId) {
+        this.supplierId = supplierId;
     }
 
     public Long getId() {

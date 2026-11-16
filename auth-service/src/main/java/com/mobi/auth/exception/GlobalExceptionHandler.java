@@ -37,10 +37,31 @@ public class GlobalExceptionHandler {
     // answers 409, which is right for "username already exists" and wrong for both of
     // these.
 
+    // 401, not the 409 above: a wrong password is not a conflict. Was reported as one
+    // until this got its own exception.
+    @ExceptionHandler(InvalidCredentialsException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public ErrorResponse handleInvalidCredentials(InvalidCredentialsException exp, HttpServletRequest request) {
+        return new ErrorResponse(LocalDateTime.now(), HttpStatus.UNAUTHORIZED.value(), "Unauthorized", exp.getMessage(), request.getRequestURI(), null);
+    }
+
+    @ExceptionHandler(BadRequestException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorResponse handleBadRequest(BadRequestException exp, HttpServletRequest request) {
+        return new ErrorResponse(LocalDateTime.now(), HttpStatus.BAD_REQUEST.value(), "Bad Request", exp.getMessage(), request.getRequestURI(), null);
+    }
+
     @ExceptionHandler(UserNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorResponse handleUserNotFound(UserNotFoundException exp, HttpServletRequest request) {
         return new ErrorResponse(LocalDateTime.now(), HttpStatus.NOT_FOUND.value(), "Not Found", exp.getMessage(), request.getRequestURI(), null);
+    }
+
+    // 423 Locked rather than 401, so the client can tell "wait" from "wrong password".
+    @ExceptionHandler(AccountLockedException.class)
+    @ResponseStatus(HttpStatus.LOCKED)
+    public ErrorResponse handleAccountLocked(AccountLockedException exp, HttpServletRequest request) {
+        return new ErrorResponse(LocalDateTime.now(), HttpStatus.LOCKED.value(), "Locked", exp.getMessage(), request.getRequestURI(), null);
     }
 
     @ExceptionHandler(AccountDisabledException.class)

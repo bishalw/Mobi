@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Map;
 
 // Everything here is reachable only with an ADMIN authority — enforced in SecurityConfig
@@ -40,6 +41,15 @@ public class AdminUserController {
         return adminUserService.listUsers(search, pageable);
     }
 
+    /**
+     * Several users by id in one call, for pages that show records owned by other
+     * services (payments, orders) and only know the user id. Unknown ids are skipped.
+     */
+    @GetMapping("/by-ids")
+    public List<UserSummaryResponse> getUsersByIds(@RequestParam List<Long> ids) {
+        return adminUserService.getUsersByIds(ids);
+    }
+
     @GetMapping("/{userId}")
     public UserSummaryResponse getUser(@PathVariable Long userId) {
         return adminUserService.getUser(userId);
@@ -48,13 +58,18 @@ public class AdminUserController {
     @PatchMapping("/{userId}/role")
     public UserSummaryResponse updateRole(@PathVariable Long userId,
                                           @Valid @RequestBody UpdateUserRoleRequest request) {
-        return adminUserService.updateRole(userId, request.getRole());
+        return adminUserService.updateRole(userId, request.getRole(), request.getSupplierId());
     }
 
     @PatchMapping("/{userId}/status")
     public UserSummaryResponse updateStatus(@PathVariable Long userId,
                                             @Valid @RequestBody UpdateUserStatusRequest request) {
         return adminUserService.updateStatus(userId, request.getEnabled());
+    }
+
+    @PostMapping("/{userId}/unlock")
+    public UserSummaryResponse unlock(@PathVariable Long userId) {
+        return adminUserService.unlock(userId);
     }
 
     // Operational tool, not part of the directory: rebuilds downstream projections by

@@ -1,20 +1,27 @@
 package com.mobi.auth.service;
 
+import com.mobi.auth.dto.LoginRequest;
 import com.mobi.auth.dto.RegisterRequest;
+import com.mobi.auth.exception.AccountLockedException;
+import com.mobi.auth.exception.InvalidRefreshTokenException;
 import com.mobi.auth.entity.User;
 import com.mobi.auth.event.UserEventPublisher;
 import com.mobi.auth.event.UserEventType;
 import com.mobi.auth.repository.UserRepository;
-import com.mobi.auth.security.JwtUtil;
+import com.mobi.auth.exception.InvalidCredentialsException;
+import com.mobi.auth.security.TokenIssuer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -25,15 +32,22 @@ class AuthServiceImplTest {
 
     private UserRepository userRepository;
     private UserEventPublisher userEventPublisher;
+    private PasswordEncoder passwordEncoder;
+    private RefreshTokenService refreshTokenService;
     private AuthServiceImpl service;
 
     @BeforeEach
     void setUp() {
         userRepository = mock(UserRepository.class);
-        PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
-        JwtUtil jwtUtil = mock(JwtUtil.class);
+        passwordEncoder = mock(PasswordEncoder.class);
+        TokenIssuer tokenIssuer = mock(TokenIssuer.class);
         userEventPublisher = mock(UserEventPublisher.class);
-        service = new AuthServiceImpl(userRepository, passwordEncoder, jwtUtil, userEventPublisher);
+        refreshTokenService = mock(RefreshTokenService.class);
+        when(tokenIssuer.issueUserToken(any(), any(), any(), any())).thenReturn("access-token");
+        when(tokenIssuer.getExpirationMs()).thenReturn(900_000L);
+        when(refreshTokenService.issue(any(), any())).thenReturn("refresh-token");
+        service = new AuthServiceImpl(userRepository, passwordEncoder, tokenIssuer, userEventPublisher,
+                refreshTokenService, 3, 15);
 
         when(passwordEncoder.encode("Password1!")).thenReturn("hashed");
     }
@@ -80,6 +94,76 @@ class AuthServiceImplTest {
 
         // No event may be published for a user that never persisted.
         verify(userEventPublisher, never()).publish(any(), any());
+    }
+
+    @Test
+    void loginIssuesAccessAndRefreshTokens() {
+        User user = existingUser();
+        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("right", "hashed")).thenReturn(true);
+
+        var result = service.login(new LoginRequest("alice", "right"), "test-agent");
+
+        assertEquals("access-token", result.response().getToken());
+        assertEquals(900, result.response().getExpiresIn());
+        assertEquals("refresh-token", result.refreshToken());
+        verify(refreshTokenService).issue(99L, "test-agent");
+    }
+
+    @Test
+    void repeatedWrongPasswordsLockTheAccount() {
+        User user = existingUser();
+        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
+
+        assertThrows(InvalidCredentialsException.class, () -> service.login(new LoginRequest("alice", "wrong"), null));
+        assertThrows(InvalidCredentialsException.class, () -> service.login(new LoginRequest("alice", "wrong"), null));
+        assertThrows(AccountLockedException.class, () -> service.login(new LoginRequest("alice", "wrong"), null));
+        assertTrue(user.isLocked(LocalDateTime.now()));
+
+        // Even the right password is refused while locked, and is not even checked.
+        when(passwordEncoder.matches("right", "hashed")).thenReturn(true);
+        assertThrows(AccountLockedException.class, () -> service.login(new LoginRequest("alice", "right"), null));
+        verify(refreshTokenService, never()).issue(any(), any());
+    }
+
+    @Test
+    void successfulLoginResetsFailureCount() {
+        User user = existingUser();
+        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("right", "hashed")).thenReturn(true);
+
+        assertThrows(InvalidCredentialsException.class, () -> service.login(new LoginRequest("alice", "wrong"), null));
+        service.login(new LoginRequest("alice", "right"), null);
+
+        assertEquals(0, user.getFailedLoginAttempts());
+        assertNotNull(user.getLastLoginAt());
+    }
+
+    @Test
+    void unknownUsernameStillPaysForAPasswordCheck() {
+        when(userRepository.findByUsername("ghost")).thenReturn(Optional.empty());
+
+        assertThrows(InvalidCredentialsException.class, () -> service.login(new LoginRequest("ghost", "x"), null));
+
+        verify(passwordEncoder).matches(org.mockito.ArgumentMatchers.eq("x"), any());
+    }
+
+    @Test
+    void refreshForDisabledAccountEndsEverySession() {
+        User user = existingUser();
+        user.setEnabled(false);
+        when(refreshTokenService.rotate("old", null)).thenReturn(new RefreshTokenService.Rotation(99L, "new"));
+        when(userRepository.findById(99L)).thenReturn(Optional.of(user));
+
+        assertThrows(InvalidRefreshTokenException.class, () -> service.refresh("old", null));
+
+        verify(refreshTokenService).revokeAllForUser(99L);
+    }
+
+    private User existingUser() {
+        User user = new User("alice", "hashed", "USER");
+        user.setId(99L);
+        return user;
     }
 
     private RegisterRequest registerRequest() {

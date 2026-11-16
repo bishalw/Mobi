@@ -7,6 +7,9 @@ public class AuthResponse {
     private Long userId;
     private String username;
     private String role;
+    // Seconds until the access token expires, so the client can refresh ahead of time
+    // instead of waiting for a 401.
+    private long expiresIn;
 
     public AuthResponse() {
     }
@@ -60,5 +63,13 @@ public class AuthResponse {
 
     public void setRole(String role) {
         this.role = role;
+    }
+
+    public long getExpiresIn() {
+        return expiresIn;
+    }
+
+    public void setExpiresIn(long expiresIn) {
+        this.expiresIn = expiresIn;
     }
 }

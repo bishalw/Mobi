@@ -39,6 +39,19 @@ public class User {
     @Column(unique = true)
     private String email;
 
+    // E.164, e.g. +15551234567. Optional; only used for SMS notifications.
+    @Column(length = 20)
+    private String phone;
+
+    // Consecutive failed logins since the last success. Reaching the limit sets
+    // lockedUntil, which turns online password guessing from millions of attempts an
+    // hour into a handful.
+    @Column(nullable = false)
+    private int failedLoginAttempts;
+
+    @Column
+    private LocalDateTime lockedUntil;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -49,6 +62,11 @@ public class User {
     // because orders reference the user id and a deleted row would orphan them.
     @Column(nullable = false)
     private boolean enabled = true;
+
+    // The procurement-service supplier this account acts for. Set iff role is SUPPLIER;
+    // it goes into the access token so procurement can scope every query to it.
+    @Column(name = "supplier_id")
+    private Long supplierId;
 
     public User() {
     }
@@ -131,5 +149,59 @@ public class User {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public Long getSupplierId() {
+        return supplierId;
+    }
+
+    /** Sets the role, linking or unlinking a supplier so the two can never disagree. */
+    public void assignRole(String role, Long supplierId) {
+        if ("SUPPLIER".equals(role) && supplierId == null) {
+            throw new IllegalArgumentException("A SUPPLIER account needs a supplierId");
+        }
+        this.role = role;
+        this.supplierId = "SUPPLIER".equals(role) ? supplierId : null;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public int getFailedLoginAttempts() {
+        return failedLoginAttempts;
+    }
+
+    public LocalDateTime getLockedUntil() {
+        return lockedUntil;
+    }
+
+    public boolean isLocked(LocalDateTime now) {
+        return lockedUntil != null && lockedUntil.isAfter(now);
+    }
+
+    /** Counts a failed login and locks the account once {@code maxAttempts} is reached. */
+    public void recordFailedLogin(int maxAttempts, java.time.Duration lockDuration, LocalDateTime now) {
+        failedLoginAttempts++;
+        if (failedLoginAttempts >= maxAttempts) {
+            lockedUntil = now.plus(lockDuration);
+            failedLoginAttempts = 0;
+        }
+    }
+
+    /** Admin override: lifts a lockout now and clears the failed-attempt count. */
+    public void unlock() {
+        failedLoginAttempts = 0;
+        lockedUntil = null;
+    }
+
+    public void recordSuccessfulLogin(LocalDateTime now) {
+        failedLoginAttempts = 0;
+        lockedUntil = null;
+        lastLoginAt = now;
     }
 }
