@@ -12,10 +12,10 @@ generated data rather than hand-edited code.**
 | Layer | Cloud-aware? |
 | --- | --- |
 | Java services | **No.** No cloud SDK in any service. Databases, cache, and broker are reached over MySQL / RESP / Kafka wire protocols, configured entirely by env var. |
-| `helm/mobi/templates/` | **No.** Vanilla Deployment, Service, Ingress, ConfigMap. Renders unchanged for kind, EKS, GKE, and AKS. |
-| `helm/mobi/values.yaml` | **No.** Structure and local defaults. Ingress *routes* live here — they are application facts. |
+| `helm/mobi/templates/` | **No.** Vanilla Deployment, Service, ConfigMap, plus Gateway API resources served by Envoy Gateway. Renders unchanged for kind, EKS, GKE, and AKS. |
+| `helm/mobi/values.yaml` | **No.** Structure and local defaults. Edge *routes* live here — they are application facts. |
 | `helm/mobi/values-cloud.yaml` | **No.** Settings that differ between laptop and managed infrastructure but not between clouds. |
-| `helm/mobi/values-<cloud>.yaml` | **Yes**, and this is the only place it is checked in. Ingress flavour and cloud CRDs. ~20 lines. |
+| `helm/mobi/values-<cloud>.yaml` | **Yes**, and this is the only place it is checked in. Load balancer annotations for the Envoy edge Service. ~20 lines. |
 | `helm/mobi/values-<env>.generated.yaml` | **Yes**, but generated from Terraform and gitignored. Never edited. |
 | `infra/terraform/modules/<cloud>/` | **Yes**, entirely. Irreducible. |
 
@@ -75,9 +75,10 @@ and ECR repositories are `IMMUTABLE`, which would reject a moving tag anyway.
 
 ## Database bootstrap
 
-A managed MySQL instance provisions exactly one database; the app needs four —
-`authdb`, `productdb`, `inventorydb`, `orderdb` — each with its own user. Locally
-`k8s/infra/mysql/initdb-configmap.yaml` handles this inside the Bitnami MySQL
+A managed MySQL instance provisions exactly one database; the app needs seven (one per
+service: auth, product, inventory, order, payment, procurement, notification), each with
+its own user. Every environment runs MySQL 8.4 LTS. Locally
+`k8s/infra/mysql/initdb-configmap.yaml` handles this inside the local MySQL
 bootstrap. That file cannot run against a managed instance, so cloud environments use
 a `pre-install,pre-upgrade` Helm hook instead:
 `helm/mobi/templates/db-bootstrap-job.yaml`.
@@ -107,7 +108,7 @@ letting the hook fail halfway through.
 
 1. Write `infra/terraform/modules/<cloud>/…` and `infra/terraform/envs/<cloud>-staging/`.
    Emit the nine contract outputs. This is the real work; budget 2–4 days.
-2. Write `helm/mobi/values-<cloud>.yaml` — ingress flavour and any cloud CRDs.
+2. Write `helm/mobi/values-<cloud>.yaml` — load balancer annotations for the Envoy edge Service.
    Around 20 lines. Use `extraManifests` for CRDs so `templates/` stays vanilla.
 3. Populate the `mobi-secrets` Secret in the cluster from that provider's secret
    manager.
@@ -125,7 +126,7 @@ Nothing in step 4 is provider-aware, which is the point of steps 1–3.
 | MySQL | RDS | Cloud SQL | Database for MySQL Flexible Server |
 | Redis | ElastiCache | Memorystore | Cache for Redis |
 | Kafka | MSK | Managed Service for Apache Kafka | **none** — Event Hubs Kafka endpoint, or Confluent Cloud |
-| Ingress | ALB via AWS LB Controller | GCE ingress | ingress-nginx (recommended) or AGIC |
+| Edge | Envoy Gateway behind an NLB (AWS LB Controller) | Envoy Gateway behind a passthrough NLB | Envoy Gateway behind an Azure Load Balancer |
 | Secrets | Secrets Manager | Secret Manager | Key Vault |
 | Pod identity | IRSA | Workload Identity | Workload Identity |
 | Registry login | `aws ecr get-login-password` | `gcloud auth configure-docker` | `az acr login` |
@@ -136,19 +137,26 @@ Nothing in step 4 is provider-aware, which is the point of steps 1–3.
 These are the traps that cost real debugging time. Each is handled by the
 contract or an overlay, but they explain *why* those knobs exist.
 
-**GKE ignores the health check path.** There is no GCE equivalent of
-`alb.ingress.kubernetes.io/healthcheck-path`. Without a `BackendConfig` the load
-balancer probes `/`, gets a 404 from api-gateway, and marks every backend
-UNHEALTHY — nothing in the pod logs explains it. Handled in `values-gcp.yaml`.
+**The edge controller is the same everywhere.** The community ingress-nginx
+controller was retired in March 2026. Edge routing now uses the Gateway API with
+Envoy Gateway on every target, installed once per cluster with
+`scripts/install-envoy-gateway.sh`. The cloud load balancer only passes TCP to
+Envoy, which removed the old per-cloud health-check traps (the GCE Ingress probing
+`/` and needing a `BackendConfig`, ALB's healthcheck annotation). The one thing to
+get right per cloud is preserving the client IP, which the per-IP rate limits key
+on: `externalTrafficPolicy: Local` everywhere, plus `preserve_client_ip` on AWS.
 
 **Azure has no managed Kafka.** The Event Hubs Kafka-compatible endpoint is the
 usual substitute and, unlike MSK, refuses unauthenticated connections. That is
 the only gap that reaches into application config: the services read
 `KAFKA_SECURITY_PROTOCOL`, `KAFKA_SASL_MECHANISM`, and
 `KAFKA_SASL_JAAS_CONFIG`, defaulting to PLAINTEXT so local and MSK are unaffected.
+The services build their Kafka clients by hand (no Boot Kafka auto-configuration), so
+each one applies these through its `KafkaClientSettings` (inventory: `KafkaConfig`);
+a new producer or consumer must start from that base map or it will connect without them.
 The JAAS string carries a credential, so it must come from the **Secret**, and
-every Kafka client service then needs `secretEnv: true` — `values-azure.yaml`
-flips notification-service, which needs no other secret.
+every Kafka client service then needs `secretEnv: true` (all of them now have it
+for their own database passwords).
 
 **Azure MySQL requires TLS.** Flexible Server rejects unencrypted connections,
 which surfaces as an opaque connection failure. Covered by `db_jdbc_params`
@@ -174,7 +182,7 @@ only; on a cloud these are managed services.
   then an identical `docker buildx build --push $REGISTRY_PREFIX/<service>:$SHA`.
 - **Frontend.** `k8s/AWS_DEPLOYMENT_NOTES.md` describes S3 + CloudFront. Since
   `frontend/` already ships a Dockerfile and nginx config, serving it in-cluster
-  behind the same ingress removes a per-cloud CDN module entirely.
+  behind the same Gateway removes a per-cloud CDN module entirely.
 - **GCP and Azure Terraform modules are not written.** Only the seams exist. The
   `values-gcp.yaml` and `values-azure.yaml` overlays are in place and render
   correctly, but no `envs/gcp-*` or `envs/azure-*` directory has been authored.
