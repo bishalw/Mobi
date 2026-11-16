@@ -13,6 +13,8 @@ public class OrderResponse {
     private OrderStatus status;
     private BigDecimal totalAmount;
     private List<OrderItemResponse> items;
+    private String paymentId;
+    private boolean restocked;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -70,5 +72,21 @@ public class OrderResponse {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public boolean isRestocked() {
+        return restocked;
+    }
+
+    public void setRestocked(boolean restocked) {
+        this.restocked = restocked;
+    }
+
+    public String getPaymentId() {
+        return paymentId;
+    }
+
+    public void setPaymentId(String paymentId) {
+        this.paymentId = paymentId;
     }
 }

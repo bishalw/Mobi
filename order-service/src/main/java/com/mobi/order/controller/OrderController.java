@@ -2,6 +2,8 @@ package com.mobi.order.controller;
 
 import com.mobi.order.dto.CreateOrderRequest;
 import com.mobi.order.dto.OrderResponse;
+import com.mobi.order.dto.PayOrderRequest;
+import com.mobi.order.dto.RefundOrderRequest;
 import com.mobi.order.service.OrderService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -52,6 +54,21 @@ public class OrderController {
         return orderService.cancelOrder(id);
     }
 
+    @PostMapping("/orders/{id}/pay")
+    public OrderResponse payForOrder(@PathVariable Long id, @Valid @RequestBody PayOrderRequest request) {
+        return orderService.payForOrder(id, request);
+    }
+
+    // Admin-only. Refunds the order's payment and marks the order REFUNDED, keeping the
+    // two in step; payment-service has no refund endpoint of its own for this reason.
+    @PostMapping("/orders/{id}/refund")
+    public OrderResponse refundOrder(@PathVariable Long id, @RequestBody(required = false) RefundOrderRequest request) {
+        return request == null
+                ? orderService.refundOrder(id, null, false)
+                : orderService.refundOrder(id, request.reason(), request.restockRequested());
+    }
+
+    // Admin-only manual override; customers pay via /pay.
     @PostMapping("/orders/{id}/confirm")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void confirmOrder(@PathVariable Long id) {
