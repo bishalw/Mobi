@@ -73,6 +73,51 @@ reference copy. Extra outputs beyond the contract are fine —
 | RDS final snapshot | disabled | enabled |
 | RDS deletion protection | disabled | enabled |
 
+## Kafka topics on MSK
+
+MSK's default configuration doesn't create topics, so `modules/aws/msk` attaches a
+configuration with `auto.create.topics.enable=true` (1 partition, replication factor =
+broker count up to 3). Topics, including the `.DLT` ones, appear on first use.
+
+## MySQL upgrades
+
+Both environments run MySQL **8.4 LTS** (`modules/aws/rds`), the same major version as the
+local cluster. Moving an existing instance from 8.0 to 8.4 (or any future engine change):
+
+1. **Snapshot first**, so there is a restore point that outlives the upgrade:
+
+   ```bash
+   aws rds create-db-snapshot --db-instance-identifier mobi-<env> \
+     --db-snapshot-identifier mobi-<env>-pre-mysql-8-4
+   aws rds wait db-snapshot-available --db-snapshot-identifier mobi-<env>-pre-mysql-8-4
+   ```
+2. **Check logins use the 8.4-compatible plugin.** 8.4 disables `mysql_native_password`
+   by default. Service users are converted by the db-bootstrap job on every Helm deploy, so
+   deploy the app once before upgrading. Then check the rest:
+
+   ```sql
+   SELECT user, plugin FROM mysql.user WHERE plugin = 'mysql_native_password';
+   ```
+
+   Convert anything listed (normally just the master user) with
+   `ALTER USER '<user>'@'%' IDENTIFIED WITH caching_sha2_password BY '<its password>';`.
+3. **Staging before production.** `terraform plan` should show in-place changes only
+   on `module.rds` (`~ update in-place`); anything marked "must be replaced" means stop.
+   The first plan after this change also adds `allow_major_version_upgrade`,
+   `auto_minor_version_upgrade`, `copy_tags_to_snapshot`, `maintenance_window` and
+   `blue_green_update`; to keep the upgrade plan minimal, apply those first with the old
+   `engine_version`, then bump the version on its own.
+4. `terraform apply` at a quiet time. It runs a Blue/Green deployment: the new 8.4 copy
+   is built and kept in sync, then traffic switches over, with about a minute of failed
+   connections. Services reconnect on their own (Hikari retries; Kafka consumers retry
+   and dead-letter after their backoff).
+5. Check pods stay ready (`kubectl -n mobi get pods`) and run `SMOKE_SKIP_LOCKOUT=1
+   ./scripts/smoke.sh` against the environment.
+
+Rollback: restore the snapshot from step 1 to a new instance and point the db endpoint
+at it (`scripts/render-values.sh` reads it from the Terraform output). There is no in-place
+downgrade from 8.4 to 8.0.
+
 ## State
 
 Remote state is stored in S3. Each environment writes to its own key:

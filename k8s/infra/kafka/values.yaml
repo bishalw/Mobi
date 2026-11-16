@@ -32,6 +32,33 @@ provisioning:
     - name: user-events
       partitions: 1
       replicationFactor: 1
+    - name: payment-events
+      partitions: 1
+      replicationFactor: 1
+    - name: procurement-events
+      partitions: 1
+      replicationFactor: 1
+    - name: inventory-events
+      partitions: 1
+      replicationFactor: 1
+    # Dead-letter topics: records a consumer could not process after its retries, kept
+    # with the failure in their headers so they can be inspected and replayed. Created
+    # up front so the first failure does not depend on topic auto-creation.
+    - name: order-events.DLT
+      partitions: 1
+      replicationFactor: 1
+    - name: user-events.DLT
+      partitions: 1
+      replicationFactor: 1
+    - name: payment-events.DLT
+      partitions: 1
+      replicationFactor: 1
+    - name: procurement-events.DLT
+      partitions: 1
+      replicationFactor: 1
+    - name: inventory-events.DLT
+      partitions: 1
+      replicationFactor: 1
 
 # Key-value map, not the `extraConfig` string block this used to be: chart 32.x renamed
 # the setting to `overrideConfiguration`, and Helm silently ignores unrecognised top-level

@@ -1,5 +1,5 @@
-# kind overlay. Ingress is inherited from values.yaml unchanged — the base
-# defaults to ingress-nginx, which is what the kind cluster runs.
+# kind overlay. kind has no cloud load balancer, so the Envoy edge proxy is exposed
+# as a NodePort pinned to 30080, which k8s/kind/cluster.yaml maps to localhost:80.
 #
 # The only thing local needs is patience: images are built on the host and the
 # JVMs start slowly on a laptop with all six services and MySQL, Redis, and Kafka
@@ -10,6 +10,24 @@ namespaceOverride: mobi
 image:
   pullPolicy: IfNotPresent
   tag: local
+
+gateway:
+  proxy:
+    service:
+      type: NodePort
+      # Local is meaningless on a single node and would drop traffic from kind's
+      # port mapping if the Envoy pod were ever on another node.
+      externalTrafficPolicy: Cluster
+      nodePorts:
+        http: 30080
+        https: 30443
+
+config:
+  # Plain http on localhost: a Secure cookie would never be sent back.
+  REFRESH_COOKIE_SECURE: "false"
+  # Every request on kind comes from one IP, so 10 a minute would let the smoke test
+  # (lockout flow included) run only once a minute. Clouds keep the default 10.
+  RATELIMIT_CREDENTIALS_PER_MINUTE: "60"
 
 services:
   auth-service:
@@ -22,6 +40,12 @@ services:
     readinessInitialDelaySeconds: 160
     livenessInitialDelaySeconds: 180
   order-service:
+    readinessInitialDelaySeconds: 160
+    livenessInitialDelaySeconds: 180
+  payment-service:
+    readinessInitialDelaySeconds: 160
+    livenessInitialDelaySeconds: 180
+  procurement-service:
     readinessInitialDelaySeconds: 160
     livenessInitialDelaySeconds: 180
   notification-service:

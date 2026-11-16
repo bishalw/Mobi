@@ -6,7 +6,7 @@
 #   values.yaml                     this file — structure and local defaults
 #   values-local.yaml               kind only: slower probe delays
 #   values-cloud.yaml               any managed cloud: hardened settings
-#   values-<cloud>.yaml             ingress flavour and cloud CRDs, ~20 lines
+#   values-<cloud>.yaml             load balancer flavour for the edge, ~20 lines
 #   values-<env>.generated.yaml     endpoints from `terraform output`, gitignored
 #
 # Endpoints and image registries are never hand-edited. They come from the
@@ -19,6 +19,11 @@ configMap:
 
 secret:
   name: mobi-secrets
+
+# Credentials only some services may see. Mounted key by key (secretKeys below), never
+# with envFrom, so product-service, say, never holds the token-signing key.
+authSecret:
+  name: mobi-auth-secrets
 
 image:
   pullPolicy: IfNotPresent
@@ -63,6 +68,15 @@ config:
   PRODUCT_SERVICE_URL: http://product-service:8083
   INVENTORY_SERVICE_URL: http://inventory-service:8084
   ORDER_SERVICE_URL: http://order-service:8085
+  PAYMENT_SERVICE_URL: http://payment-service:8087
+  PROCUREMENT_SERVICE_URL: http://procurement-service:8088
+
+  # Token verification, identical in every service. auth-service signs (RS256) and
+  # publishes its public keys; everyone else fetches them from the JWKS URL. To move to
+  # Keycloak, Okta or Cognito, point these three at the provider.
+  JWT_ISSUER: http://auth-service:8082
+  JWT_JWK_SET_URI: http://auth-service:8082/.well-known/jwks.json
+  AUTH_TOKEN_URI: http://auth-service:8082/oauth2/token
 
   AUTH_DB_URL: jdbc:mysql://mysql:3306/authdb
   AUTH_DB_USERNAME: auth_user
@@ -84,6 +98,18 @@ config:
   ORDER_JPA_DDL_AUTO: validate
   ORDER_JPA_SHOW_SQL: "false"
 
+  PAYMENT_DB_URL: jdbc:mysql://mysql:3306/paymentdb
+  PAYMENT_DB_USERNAME: payment_user
+  PAYMENT_JPA_DDL_AUTO: validate
+
+  PROCUREMENT_DB_URL: jdbc:mysql://mysql:3306/procurementdb
+  PROCUREMENT_DB_USERNAME: procurement_user
+  PROCUREMENT_JPA_DDL_AUTO: validate
+
+  NOTIFICATION_DB_URL: jdbc:mysql://mysql:3306/notificationdb
+  NOTIFICATION_DB_USERNAME: notification_user
+  NOTIFICATION_JPA_DDL_AUTO: validate
+
   REDIS_HOST: redis-master
   REDIS_PORT: "6379"
   REDIS_SSL_ENABLED: "false"
@@ -97,15 +123,48 @@ config:
   KAFKA_SASL_MECHANISM: PLAIN
   ORDER_EVENTS_TOPIC: order-events
   USER_EVENTS_TOPIC: user-events
+  PAYMENT_EVENTS_TOPIC: payment-events
+  PROCUREMENT_EVENTS_TOPIC: procurement-events
+  INVENTORY_EVENTS_TOPIC: inventory-events
+  INVENTORY_CONSUMER_GROUP: inventory-service
   NOTIFICATION_CONSUMER_GROUP: notification-service
 
-  JWT_EXPIRATION_MS: "3600000"
+  # Login/register/refresh attempts per client IP per minute, at the api-gateway.
+  RATELIMIT_CREDENTIALS_PER_MINUTE: "10"
+
+  # 15-minute access tokens, renewed through the refresh-token cookie.
+  JWT_EXPIRATION_MS: "900000"
+  REFRESH_TOKEN_TTL_DAYS: "14"
+  # Demo staff accounts (see auth-service BootstrapUsers). Credentials are in mobi-secrets.
   ADMIN_BOOTSTRAP_ENABLED: "true"
+  WAREHOUSE_BOOTSTRAP_ENABLED: "true"
+  SUPPLIER_BOOTSTRAP_ENABLED: "true"
+  SUPPLIER_BOOTSTRAP_SUPPLIER_ID: "1"
+
+  # simulated | stripe. Stripe also needs STRIPE_SECRET_KEY in the Secret.
+  PAYMENT_PROVIDER: simulated
+  PAYMENT_CURRENCY: USD
+
+  # Email goes to Mailpit locally; a cloud overlay points these at an SMTP relay such
+  # as Amazon SES and puts MAIL_USERNAME / MAIL_PASSWORD in the Secret.
+  MAIL_HOST: mailpit
+  MAIL_PORT: "1025"
+  MAIL_SMTP_AUTH: "false"
+  MAIL_STARTTLS: "false"
+  MAIL_FROM: "Mobi <no-reply@mobi.local>"
+  # log | twilio. Twilio also needs TWILIO_* values in the Secret.
+  SMS_PROVIDER: log
+
+  # Spans go to the in-cluster Jaeger locally. On a cloud, point this at the managed
+  # tracing backend's OTLP/HTTP endpoint (or an OpenTelemetry Collector in front of it).
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+  TRACING_SAMPLING_PROBABILITY: "1.0"
 
 services:
   api-gateway:
     image: mobi/api-gateway
     port: 8080
+    # Needs no secrets: it verifies tokens with auth-service's public keys.
     secretEnv: false
     readinessInitialDelaySeconds: 20
     livenessInitialDelaySeconds: 60
@@ -113,6 +172,11 @@ services:
     image: mobi/auth-service
     port: 8082
     secretEnv: true
+    # The only holder of the private signing key, and the registry of service clients.
+    secretKeys:
+      JWT_PRIVATE_KEY: required
+      JWT_PREVIOUS_PUBLIC_KEY: optional
+      ORDER_SERVICE_CLIENT_SECRET: required
     readinessInitialDelaySeconds: 30
     livenessInitialDelaySeconds: 90
   product-service:
@@ -131,48 +195,76 @@ services:
     image: mobi/order-service
     port: 8085
     secretEnv: true
+    # Its own client secret, exchanged for a service token to call inventory and payment.
+    secretKeys:
+      ORDER_SERVICE_CLIENT_SECRET: required
     readinessInitialDelaySeconds: 40
     livenessInitialDelaySeconds: 120
+  payment-service:
+    image: mobi/payment-service
+    port: 8087
+    secretEnv: true
+    readinessInitialDelaySeconds: 30
+    livenessInitialDelaySeconds: 90
+  procurement-service:
+    image: mobi/procurement-service
+    port: 8088
+    secretEnv: true
+    readinessInitialDelaySeconds: 30
+    livenessInitialDelaySeconds: 90
   notification-service:
     image: mobi/notification-service
     port: 8086
-    secretEnv: false
+    # Its own database password, and SMTP / Twilio credentials on a cloud.
+    secretEnv: true
     readinessInitialDelaySeconds: 30
     livenessInitialDelaySeconds: 90
 
-# Routes are application facts, not cloud facts — they are defined once, here.
-# Overlays override className and annotations only, never the path list.
-ingress:
+# Edge routing: Kubernetes Gateway API, served by Envoy Gateway (installed once per
+# cluster by scripts/install-envoy-gateway.sh). Routes are application facts and are
+# defined once, here; cloud overlays only change how the Envoy Service is exposed.
+gateway:
   enabled: true
-  className: nginx
-  annotations: {}
-  hosts:
-    - host: ""
-      paths:
-        # Scoped to /actuator/health, not all of /actuator. The gateway is the only
-        # service reachable from outside the cluster, and actuator now also serves
-        # /actuator/prometheus and /actuator/metrics — request patterns, JVM internals,
-        # and the full endpoint inventory. Those must stay in-cluster; Prometheus
-        # scrapes pods directly. This still covers /health/readiness and /health/liveness.
-        - path: /actuator/health
-          service: api-gateway
-          port: 8080
-        - path: /auth
-          service: api-gateway
-          port: 8080
-        - path: /productapi
-          service: api-gateway
-          port: 8080
-        - path: /inventoryapi
-          service: api-gateway
-          port: 8080
-        - path: /orderapi
-          service: api-gateway
-          port: 8080
+  className: eg
+  # Empty matches any host. Set it when DNS points at the gateway, and for TLS.
+  hostname: ""
+  tls:
+    enabled: false
+    # A kubernetes.io/tls Secret in the release namespace, e.g. issued by cert-manager.
+    secretName: ""
+  proxy:
+    replicas: 1
+    resources: {}
+    service:
+      # LoadBalancer gets a cloud load balancer; kind overrides this to NodePort.
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+      nodePorts: {}
+  routes:
+    service: api-gateway
+    port: 8080
+    requestTimeout: 30s
+    paths:
+      # Scoped to /actuator/health, not all of /actuator. The gateway is the only
+      # service reachable from outside the cluster, and actuator also serves
+      # /actuator/prometheus and /actuator/metrics: request patterns, JVM internals,
+      # and the full endpoint inventory. Those must stay in-cluster; Prometheus
+      # scrapes pods directly. This still covers /health/readiness and /health/liveness.
+      - /actuator/health
+      - /auth
+      - /productapi
+      - /inventoryapi
+      - /orderapi
+      - /paymentapi
+      - /procurementapi
+  edgeRateLimit:
+    enabled: true
+    requestsPerMinute: 600
 
-# Creates the four per-service databases and their users on a managed instance.
+# Creates the per-service databases and their users on a managed instance.
 #
-# Off locally: the in-cluster Bitnami MySQL already does this from
+# Off locally: the in-cluster MySQL already does this from
 # k8s/infra/mysql/initdb-configmap.yaml, which runs inside its own bootstrap.
 # On by default for cloud environments — see values-cloud.yaml.
 #
@@ -183,7 +275,8 @@ ingress:
 # the same Job works against RDS, Cloud SQL, and Azure MySQL.
 dbBootstrap:
   enabled: false
-  image: mysql:8.0
+  # Client only; matches the server's major version (RDS and local are both 8.4 LTS).
+  image: mysql:8.4.13
   # From the db_endpoint Terraform output, written by scripts/render-values.sh.
   host: ""
   port: 3306
@@ -199,6 +292,12 @@ dbBootstrap:
       name: inventorydb
     - prefix: ORDER
       name: orderdb
+    - prefix: PAYMENT
+      name: paymentdb
+    - prefix: PROCUREMENT
+      name: procurementdb
+    - prefix: NOTIFICATION
+      name: notificationdb
 
 metrics:
   # Annotation-based discovery: works with a stock Prometheus scrape config and needs

@@ -40,6 +40,8 @@ SERVICES=(
   product-service
   inventory-service
   order-service
+  payment-service
+  procurement-service
   notification-service
 )
 
@@ -50,6 +52,9 @@ DATABASES=(
   "PRODUCT:productdb"
   "INVENTORY:inventorydb"
   "ORDER:orderdb"
+  "PAYMENT:paymentdb"
+  "PROCUREMENT:procurementdb"
+  "NOTIFICATION:notificationdb"
 )
 
 die() {
@@ -160,8 +165,8 @@ OUT_FILE="$REPO_ROOT/helm/mobi/values-$ENV_NAME.generated.yaml"
   echo "# Regenerate with: scripts/render-values.sh $ENV_NAME"
   echo "#"
   echo "# Every value below comes from Terraform state. Edit the infrastructure, not"
-  echo "# this file. Cloud-invariant settings belong in values-cloud.yaml; ingress"
-  echo "# flavour belongs in values-<cloud>.yaml."
+  echo "# this file. Cloud-invariant settings belong in values-cloud.yaml; load"
+  echo "# balancer flavour belongs in values-<cloud>.yaml."
   echo
   echo "image:"
   echo "  tag: \"$IMAGE_TAG\""

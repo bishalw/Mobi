@@ -50,11 +50,19 @@ spec:
                 name: {{ $.Values.secret.name }}
             {{- end }}
           {{- $env := merge (dict) (default (dict) $svc.extraEnv) (default (dict) $.Values.extraEnv) }}
-          {{- if $env }}
+          {{- if or $env $svc.secretKeys }}
           env:
             {{- range $k, $v := $env }}
             - name: {{ $k }}
               value: {{ $v | quote }}
+            {{- end }}
+            {{- range $key, $need := $svc.secretKeys }}
+            - name: {{ $key }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.authSecret.name }}
+                  key: {{ $key }}
+                  optional: {{ eq $need "optional" }}
             {{- end }}
           {{- end }}
           {{- with default $.Values.resources $svc.resources }}

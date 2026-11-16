@@ -5,6 +5,8 @@ locals {
     "product-service",
     "inventory-service",
     "order-service",
+    "payment-service",
+    "procurement-service",
     "notification-service",
   ]
 }

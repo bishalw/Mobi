@@ -1,35 +1,24 @@
-# Azure overlay — AKS.
+# Azure overlay: AKS.
 #
-# Ingress: this deliberately keeps ingress-nginx (className "nginx", inherited
-# from values.yaml) rather than switching to Application Gateway. AKS has no
-# first-party managed ingress in the way EKS and GKE do, so running the same
-# controller as the local kind cluster means one identical code path everywhere
-# and no annotation dialect to learn. The AGIC alternative is at the bottom.
+# Edge: the same Envoy Gateway as every other target, exposed through a standard
+# Azure Load Balancer. AKS's own Gateway API option (Application Gateway for
+# Containers) would also work, but keeping Envoy means one identical code path from
+# kind to every cloud.
 #
-# The real Azure-specific work here is Kafka. Azure has no managed Kafka: the
-# Event Hubs Kafka-compatible endpoint is the usual substitute, and unlike MSK it
-# refuses unauthenticated connections. The env's Terraform emits
-# kafka_security_protocol = "SASL_SSL", which reaches the pods through the
-# generated values; KAFKA_SASL_JAAS_CONFIG carries the Event Hubs connection
-# string, so it must live in the Secret, never the ConfigMap.
+# The real Azure-specific work here is Kafka. Azure has no managed Kafka: the Event
+# Hubs Kafka-compatible endpoint is the usual substitute, and unlike MSK it refuses
+# unauthenticated connections. The env's Terraform emits
+# kafka_security_protocol = "SASL_SSL", which reaches the pods through the generated
+# values; KAFKA_SASL_JAAS_CONFIG carries the Event Hubs connection string, so it must
+# live in the Secret, never the ConfigMap.
 
 config:
   # Event Hubs and Confluent Cloud both authenticate with SASL/PLAIN.
   KAFKA_SASL_MECHANISM: PLAIN
 
-services:
-  # notification-service takes no other secret, so it is secretEnv: false in the
-  # base. On Azure it needs the Secret purely to read KAFKA_SASL_JAAS_CONFIG —
-  # without this flip the consumer starts, fails to authenticate, and retries
-  # forever with no obviously Kafka-shaped error.
-  notification-service:
-    secretEnv: true
-
-# Application Gateway alternative. Requires the AGIC add-on on the cluster; the
-# health probe path is an annotation here rather than a CRD as on GKE.
-#
-# ingress:
-#   className: azure-application-gateway
-#   annotations:
-#     appgw.ingress.kubernetes.io/health-probe-path: /actuator/health/readiness
-#     appgw.ingress.kubernetes.io/backend-protocol: http
+gateway:
+  proxy:
+    service:
+      annotations:
+        # A stable DNS label on the load balancer's public IP: <label>.<region>.cloudapp.azure.com
+        service.beta.kubernetes.io/azure-dns-label-name: mobi-edge

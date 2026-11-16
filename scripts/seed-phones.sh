@@ -1,12 +1,23 @@
 #!/usr/bin/env bash
 set -e
 
-BASE="http://localhost"
+# Demo catalogue, stock and a few orders, for a freshly deployed local stack.
+# Uses the admin account from .env.local (ADMIN_BOOTSTRAP_USERNAME / _PASSWORD).
+ENV_FILE="${ENV_FILE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.env.local}"
+if [[ -f "$ENV_FILE" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  set +a
+fi
+BASE="${SMOKE_BASE_URL:-http://localhost}"
+ADMIN_USER="${ADMIN_BOOTSTRAP_USERNAME:-admin}"
+ADMIN_PASS="${ADMIN_BOOTSTRAP_PASSWORD:-adminpass}"
 
 echo "==> Logging in as admin..."
 ADMIN_TOKEN=$(curl -s -X POST "$BASE/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"adminpass"}' | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+  -d "{\"username\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\"}" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
 
 if [ -z "$ADMIN_TOKEN" ]; then
   echo "ERROR: Could not get admin token. Is the stack running?"
@@ -18,10 +29,17 @@ echo ""
 echo "==> Creating products..."
 
 create_product() {
-  curl -s -X POST "$BASE/productapi/products" \
+  local id
+  id=$(curl -s -X POST "$BASE/productapi/products" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer $ADMIN_TOKEN" \
-    -d "$1" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2
+    -d "$1" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2 || true)
+  # Stop here rather than seed stock and orders against empty ids.
+  if [[ -z "$id" ]]; then
+    echo "ERROR: could not create product $1 (is product-service up, or does the SKU already exist?)" >&2
+    exit 1
+  fi
+  echo "$id"
 }
 
 P1=$(create_product '{"sku":"IPH-15-PRO-256","name":"iPhone 15 Pro 256GB","description":"Apple iPhone 15 Pro, 256GB, Titanium Black","price":999.99,"active":true}')
@@ -51,22 +69,53 @@ echo "    Created Motorola Edge 40      id=$P8"
 echo ""
 echo "==> Creating inventory..."
 
-create_inventory() {
-  curl -s -X POST "$BASE/inventoryapi/products" \
-    -H "Content-Type: application/json" \
-    -H "Authorization: Bearer $ADMIN_TOKEN" \
-    -d "$1" > /dev/null
+# Opening stock is an INITIAL ledger entry (which creates the stock record), then the
+# shelf and the low-stock threshold are set on it.
+create_inventory() { # productId quantity location reorderLevel
+  local auth=(-H "Content-Type: application/json" -H "Authorization: Bearer $ADMIN_TOKEN")
+  curl -s -X POST "$BASE/inventoryapi/products/$1/adjustments" "${auth[@]}" \
+    -d "{\"quantityDelta\":$2,\"reason\":\"INITIAL\",\"note\":\"Opening stock\"}" > /dev/null
+  curl -s -X PATCH "$BASE/inventoryapi/products/$1" "${auth[@]}" \
+    -d "{\"warehouseLocation\":\"$3\",\"reorderLevel\":$4}" > /dev/null
 }
 
-create_inventory "{\"productId\":$P1,\"availableQuantity\":42,\"warehouseLocation\":\"Shelf A1\"}"
-create_inventory "{\"productId\":$P2,\"availableQuantity\":18,\"warehouseLocation\":\"Shelf A2\"}"
-create_inventory "{\"productId\":$P3,\"availableQuantity\":35,\"warehouseLocation\":\"Shelf B1\"}"
-create_inventory "{\"productId\":$P4,\"availableQuantity\":60,\"warehouseLocation\":\"Shelf B2\"}"
-create_inventory "{\"productId\":$P5,\"availableQuantity\":25,\"warehouseLocation\":\"Shelf C1\"}"
-create_inventory "{\"productId\":$P6,\"availableQuantity\":4,\"warehouseLocation\":\"Shelf C2\"}"
-create_inventory "{\"productId\":$P7,\"availableQuantity\":0,\"warehouseLocation\":\"Shelf D1\"}"
-create_inventory "{\"productId\":$P8,\"availableQuantity\":12,\"warehouseLocation\":\"Shelf D2\"}"
+create_inventory "$P1" 42 "Shelf A1" 10
+create_inventory "$P2" 18 "Shelf A2" 10
+create_inventory "$P3" 35 "Shelf B1" 10
+create_inventory "$P4" 60 "Shelf B2" 15
+create_inventory "$P5" 25 "Shelf C1" 5
+create_inventory "$P6" 4  "Shelf C2" 5   # starts below its reorder level: shows the low-stock badge
+# OnePlus 12 Pro ($P7) is deliberately left unstocked: it shows as out of stock until
+# a purchase order for it is received.
+create_inventory "$P8" 12 "Shelf D2" 5
 echo "    Inventory created for all products."
+
+echo ""
+echo "==> Supplier catalogue and a purchase order..."
+
+# Supplier 1 ("Mobi Distribution", seeded by procurement-service) sells every product
+# at 60% of its retail price.
+cost() { awk -v p="$1" 'BEGIN { printf "%.2f", p * 0.6 }'; }
+CATALOGUE="{\"products\":["
+for pair in "$P1:999.99" "$P2:1199.99" "$P3:1299.99" "$P4:799.99" "$P5:899.99" "$P6:699.99" "$P7:749.99" "$P8:549.99"; do
+  CATALOGUE+="{\"productId\":${pair%%:*},\"unitCost\":$(cost "${pair#*:}")},"
+done
+CATALOGUE="${CATALOGUE%,}]}"
+curl -s -X PUT "$BASE/procurementapi/suppliers/1/products" \
+  -H "Content-Type: application/json" -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d "$CATALOGUE" > /dev/null
+
+# The unstocked OnePlus, ordered and sent, so the supplier login has something to accept.
+PO_ID=$(curl -s -X POST "$BASE/procurementapi/purchase-orders" \
+  -H "Content-Type: application/json" -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d "{\"supplierId\":1,\"notes\":\"Restock: OnePlus 12 Pro is out of stock\",\"lines\":[{\"productId\":$P7,\"quantity\":20},{\"productId\":$P6,\"quantity\":30}]}" \
+  | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+if [ -n "$PO_ID" ]; then
+  curl -s -X POST "$BASE/procurementapi/purchase-orders/$PO_ID/send" -H "Authorization: Bearer $ADMIN_TOKEN" > /dev/null
+  echo "    Catalogue set; purchase order $PO_ID sent to Mobi Distribution."
+else
+  echo "    WARNING: could not create the demo purchase order (is procurement-service up?)"
+fi
 
 echo ""
 echo "==> Registering test user..."
@@ -114,5 +163,7 @@ echo "    Order $O3: 1x Samsung Galaxy S24"
 
 echo ""
 echo "Done. Log in at http://localhost:5173"
-echo "  admin:    admin / adminpass"
-echo "  testuser: testuser / testpass123"
+echo "  admin:     admin / adminpass"
+echo "  warehouse: warehouse / warehousepass"
+echo "  supplier:  supplier / supplierpass"
+echo "  testuser:  testuser / testpass123"

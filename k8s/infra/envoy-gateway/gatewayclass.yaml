@@ -1,0 +1,10 @@
+# The GatewayClass every Gateway in the cluster names to be served by Envoy Gateway.
+# Cluster-scoped, so it is installed once with the controller (scripts/install-envoy-gateway.sh)
+# rather than by the application chart. Per-Gateway settings, such as how the Envoy
+# Service is exposed, live in an EnvoyProxy resource the chart attaches to its Gateway.
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: eg
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller

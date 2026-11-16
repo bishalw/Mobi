@@ -12,11 +12,16 @@ config:
   # ddl-auto is validate in the base values now that Flyway owns the schema on
   # every target, local included, so there is nothing cloud-specific to set here.
 
-  # The bootstrap admin exists after the first deploy; leaving this on would let
-  # a restart silently reset the account.
+  # The bootstrap accounts exist after the first deploy; leaving these on would let
+  # a restart silently reset them. The warehouse and supplier logins are demo-only.
   ADMIN_BOOTSTRAP_ENABLED: "false"
+  WAREHOUSE_BOOTSTRAP_ENABLED: "false"
+  SUPPLIER_BOOTSTRAP_ENABLED: "false"
+  # Every request traced is right for a demo; at real traffic one in ten is plenty to
+  # find slow paths, and costs a tenth as much in the tracing backend.
+  TRACING_SAMPLING_PROBABILITY: "0.1"
 
-# A managed instance provisions one database; the app needs four. This creates the
+# A managed instance provisions one database; the app needs one per service. This creates the
 # missing ones and their users before the services start. `host` arrives from the
 # db_endpoint Terraform output via the generated values.
 dbBootstrap:
@@ -54,3 +59,14 @@ autoscaling:
 podDisruptionBudget:
   enabled: true
   maxUnavailable: 1
+
+# Two Envoy replicas so a node drain or rollout never takes the edge down.
+gateway:
+  proxy:
+    replicas: 2
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        memory: 512Mi

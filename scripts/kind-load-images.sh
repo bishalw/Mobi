@@ -19,6 +19,8 @@ images=(
   mobi/product-service:local
   mobi/inventory-service:local
   mobi/order-service:local
+  mobi/payment-service:local
+  mobi/procurement-service:local
   mobi/notification-service:local
 )
 
@@ -28,6 +30,8 @@ contexts=(
   product-service
   inventory-service
   order-service
+  payment-service
+  procurement-service
   notification-service
 )
 
