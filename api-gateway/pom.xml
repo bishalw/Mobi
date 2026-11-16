@@ -35,6 +35,25 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-gateway-server-webflux</artifactId>
         </dependency>
+        <!-- Redis-backed token buckets for RequestRateLimiter. Shared across gateway
+             replicas, so a client gets one budget however requests are balanced. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis-reactive</artifactId>
+        </dependency>
+        <!-- Verifies the JWT only to pick a rate-limit bucket. Authorization stays with
+             each service; an unverified token here would let a client forge a userId
+             and spread its traffic over unlimited buckets. Just Spring Security's JOSE
+             module (Nimbus), not the web security starter, which would put a security
+             filter chain in front of every route. -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-oauth2-jose</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-opentelemetry</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
