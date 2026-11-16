@@ -1,28 +1,27 @@
 package com.mobi.inventory.config;
 
-import com.mobi.inventory.security.InternalServiceFilter;
-import com.mobi.inventory.security.JwtFilter;
 import com.mobi.inventory.security.SecurityErrorResponseWriter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
+import org.springframework.security.web.AuthenticationEntryPoint;
 
 @Configuration
 public class SecurityConfig {
 
-    private final JwtFilter jwtFilter;
-    private final InternalServiceFilter internalServiceFilter;
-
-    public SecurityConfig(JwtFilter jwtFilter, InternalServiceFilter internalServiceFilter) {
-        this.jwtFilter = jwtFilter;
-        this.internalServiceFilter = internalServiceFilter;
-    }
+    private static final AuthorizationManager<RequestAuthorizationContext> NOT_SUPPLIER = (authentication, context) ->
+            new AuthorizationDecision(authentication.get().getAuthorities().stream()
+                    .noneMatch(authority -> "SUPPLIER".equals(authority.getAuthority())));
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -30,20 +29,37 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/inventoryapi/products/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/inventoryapi/products").hasAuthority("ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/inventoryapi/products/*/reserve", "/inventoryapi/products/*/release", "/inventoryapi/products/*/deduct").hasAuthority("ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/inventoryapi/reservations", "/inventoryapi/reservations/*/release", "/inventoryapi/reservations/*/confirm").hasAnyAuthority("ADMIN", "SERVICE")
+                        // Who changed stock and why is internal; checked before the public GET below.
+                        .requestMatchers(HttpMethod.GET, "/inventoryapi/products/*/adjustments").hasAnyAuthority("ADMIN", "WAREHOUSE")
+                        // Public, except to suppliers: stock levels are internal (procurement spec §12).
+                        .requestMatchers(HttpMethod.GET, "/inventoryapi/products/**").access(NOT_SUPPLIER)
+                        .requestMatchers(HttpMethod.POST, "/inventoryapi/products/*/adjustments").hasAnyAuthority("ADMIN", "WAREHOUSE")
+                        .requestMatchers(HttpMethod.PATCH, "/inventoryapi/products/*").hasAnyAuthority("ADMIN", "WAREHOUSE")
+                        .requestMatchers(HttpMethod.POST, "/inventoryapi/reservations", "/inventoryapi/reservations/*/release", "/inventoryapi/reservations/*/confirm", "/inventoryapi/reservations/*/return").hasAnyAuthority("ADMIN", "SERVICE")
                         .requestMatchers("/inventoryapi/**").hasAuthority("ADMIN")
                         .anyRequest().authenticated())
-                .exceptionHandling(exception -> exception
-                        .authenticationEntryPoint((request, response, exp) -> SecurityErrorResponseWriter.write(
-                                request, response, HttpStatus.UNAUTHORIZED.value(), "Unauthorized", "Authentication is required"))
+                // Bearer tokens are verified by Spring Security against auth-service's public
+                // keys; see the spring.security.oauth2.resourceserver.* properties.
+                .oauth2ResourceServer(resourceServer -> resourceServer
+                        .jwt(Customizer.withDefaults())
+                        .authenticationEntryPoint(unauthorized())
                         .accessDeniedHandler((request, response, exp) -> SecurityErrorResponseWriter.write(
                                 request, response, HttpStatus.FORBIDDEN.value(), "Forbidden", exp.getMessage())))
-                .addFilterBefore(internalServiceFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(unauthorized())
+                        .accessDeniedHandler((request, response, exp) -> SecurityErrorResponseWriter.write(
+                                request, response, HttpStatus.FORBIDDEN.value(), "Forbidden", exp.getMessage())));
 
         return http.build();
+    }
+
+    /** Standard {@code WWW-Authenticate: Bearer ...} header plus the usual JSON error body. */
+    private static AuthenticationEntryPoint unauthorized() {
+        BearerTokenAuthenticationEntryPoint bearer = new BearerTokenAuthenticationEntryPoint();
+        return (request, response, exp) -> {
+            bearer.commence(request, response, exp);
+            SecurityErrorResponseWriter.write(request, response, HttpStatus.UNAUTHORIZED.value(),
+                    "Unauthorized", "Authentication is required");
+        };
     }
 }
