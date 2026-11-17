@@ -20,6 +20,13 @@ config:
   # Every request traced is right for a demo; at real traffic one in ten is plenty to
   # find slow paths, and costs a tenth as much in the tracing backend.
   TRACING_SAMPLING_PROBABILITY: "0.1"
+  # Mailpit only exists on kind, so every cloud sends through a real SMTP relay (SES,
+  # SendGrid, Postmark: all speak authenticated SMTP with STARTTLS on 587). MAIL_HOST
+  # and MAIL_FROM arrive from the mail_host / mail_from Terraform outputs via the
+  # generated values; MAIL_USERNAME / MAIL_PASSWORD come from the Secret.
+  MAIL_PORT: "587"
+  MAIL_SMTP_AUTH: "true"
+  MAIL_STARTTLS: "true"
 
 # A managed instance provisions one database; the app needs one per service. This creates the
 # missing ones and their users before the services start. `host` arrives from the

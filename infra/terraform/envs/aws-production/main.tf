@@ -79,3 +79,11 @@ module "msk" {
   broker_count               = 3
   broker_instance_type       = "kafka.m5.large"
 }
+
+module "ses" {
+  source = "../../modules/aws/ses"
+
+  name            = "mobi-production"
+  domain          = var.mail_domain
+  route53_zone_id = var.route53_zone_id
+}

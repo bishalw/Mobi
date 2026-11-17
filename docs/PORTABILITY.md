@@ -26,7 +26,7 @@ contract is the cheaper trade.
 
 ## The output contract
 
-Every environment directory, on every cloud, must emit these nine outputs under
+Every environment directory, on every cloud, must emit these eleven outputs under
 exactly these names. `scripts/render-values.sh` consumes them by name, which is
 what makes adding a cloud require no change to the chart or the deploy script.
 
@@ -41,6 +41,8 @@ what makes adding a cloud require no change to the chart or the deploy script.
 | `redis_ssl_enabled` | `"true"` / `"false"` string. |
 | `kafka_bootstrap` | Comma-separated `host:port` pairs. |
 | `kafka_security_protocol` | `PLAINTEXT`, `SSL`, `SASL_PLAINTEXT`, or `SASL_SSL`. |
+| `mail_host` | SMTP relay hostname. Port 587, STARTTLS and auth are set for every cloud in `values-cloud.yaml`. |
+| `mail_from` | From header for every email, e.g. `Mobi <no-reply@mobi.example.com>`. |
 
 `infra/terraform/envs/aws-staging/outputs.tf` is the annotated reference copy.
 Envs may emit additional outputs beyond the contract; `ecr_repository_urls` is
@@ -48,7 +50,7 @@ one such AWS-specific extra, used for image push.
 
 Rendering fails loudly and lists every missing name at once if an env does not
 satisfy the contract, so standing up a new cloud is one error message rather
-than nine rounds of fix-one-and-rerun.
+than eleven rounds of fix-one-and-rerun.
 
 ## Deploying
 
@@ -107,7 +109,9 @@ letting the hook fail halfway through.
 ## Adding a cloud
 
 1. Write `infra/terraform/modules/<cloud>/…` and `infra/terraform/envs/<cloud>-staging/`.
-   Emit the nine contract outputs. This is the real work; budget 2–4 days.
+   Emit the eleven contract outputs. This is the real work; budget 2–4 days.
+   Without a provider email service, point `mail_host` at SendGrid or Postmark's SMTP
+   endpoint (a Terraform output can be a plain string).
 2. Write `helm/mobi/values-<cloud>.yaml` — load balancer annotations for the Envoy edge Service.
    Around 20 lines. Use `extraManifests` for CRDs so `templates/` stays vanilla.
 3. Populate the `mobi-secrets` Secret in the cluster from that provider's secret
@@ -128,6 +132,7 @@ Nothing in step 4 is provider-aware, which is the point of steps 1–3.
 | Kafka | MSK | Managed Service for Apache Kafka | **none** — Event Hubs Kafka endpoint, or Confluent Cloud |
 | Edge | Envoy Gateway behind an NLB (AWS LB Controller) | Envoy Gateway behind a passthrough NLB | Envoy Gateway behind an Azure Load Balancer |
 | Secrets | Secrets Manager | Secret Manager | Key Vault |
+| Email (SMTP) | SES | none — SendGrid / Postmark | Communication Services Email, or SendGrid / Postmark |
 | Pod identity | IRSA | Workload Identity | Workload Identity |
 | Registry login | `aws ecr get-login-password` | `gcloud auth configure-docker` | `az acr login` |
 | Kubeconfig | `aws eks update-kubeconfig` | `gcloud container clusters get-credentials` | `az aks get-credentials` |

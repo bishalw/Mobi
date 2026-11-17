@@ -162,6 +162,41 @@ if [[ "$INSTALL_INCLUSTER_DEPS" == true ]]; then
   SUPPLIER_BOOTSTRAP_USERNAME="${SUPPLIER_BOOTSTRAP_USERNAME:-supplier}"
   SUPPLIER_BOOTSTRAP_PASSWORD="${SUPPLIER_BOOTSTRAP_PASSWORD:-supplierpass}"
 
+  # Email goes to the in-cluster Mailpit unless MAIL_HOST is set in the env file. Setting
+  # it opts this kind cluster into a real SMTP relay (SES sandbox credentials, a Gmail app
+  # password, Mailtrap...), so the emails reach real inboxes. See docs/LOCAL_SETUP.md.
+  mail_secret_args=()
+  if [[ -n "${MAIL_HOST:-}" ]]; then
+    MAIL_PORT="${MAIL_PORT:-587}"
+    MAIL_SMTP_AUTH="${MAIL_SMTP_AUTH:-true}"
+    MAIL_STARTTLS="${MAIL_STARTTLS:-true}"
+    require_env MAIL_FROM
+    if [[ "$MAIL_SMTP_AUTH" == true ]]; then
+      require_env MAIL_USERNAME
+      require_env MAIL_PASSWORD
+      mail_secret_args+=(
+        --from-literal=MAIL_USERNAME="$MAIL_USERNAME"
+        --from-literal=MAIL_PASSWORD="$MAIL_PASSWORD"
+      )
+    fi
+
+    # Overrides values.yaml's Mailpit settings. A values file rather than --set, which
+    # would split MAIL_FROM on commas; double-quoted YAML with \ and " escaped.
+    yaml_str() { local v="${1//\\/\\\\}"; printf '"%s"' "${v//\"/\\\"}"; }
+    LOCAL_MAIL_VALUES="$(mktemp "${TMPDIR:-/tmp}/mobi-mail-values.XXXXXX")"
+    trap 'rm -f "$LOCAL_MAIL_VALUES"' EXIT
+    {
+      echo "config:"
+      echo "  MAIL_HOST: $(yaml_str "$MAIL_HOST")"
+      echo "  MAIL_PORT: $(yaml_str "$MAIL_PORT")"
+      echo "  MAIL_SMTP_AUTH: $(yaml_str "$MAIL_SMTP_AUTH")"
+      echo "  MAIL_STARTTLS: $(yaml_str "$MAIL_STARTTLS")"
+      echo "  MAIL_FROM: $(yaml_str "$MAIL_FROM")"
+    } >"$LOCAL_MAIL_VALUES"
+    VALUES_ARGS+=(--values "$LOCAL_MAIL_VALUES")
+    echo "==> email: real SMTP through $MAIL_HOST:$MAIL_PORT (MAIL_HOST is set), not Mailpit"
+  fi
+
   for name in \
     MYSQL_ROOT_PASSWORD \
     AUTH_DB_PASSWORD \
@@ -195,6 +230,7 @@ if [[ "$INSTALL_INCLUSTER_DEPS" == true ]]; then
     --from-literal=WAREHOUSE_BOOTSTRAP_PASSWORD="$WAREHOUSE_BOOTSTRAP_PASSWORD" \
     --from-literal=SUPPLIER_BOOTSTRAP_USERNAME="$SUPPLIER_BOOTSTRAP_USERNAME" \
     --from-literal=SUPPLIER_BOOTSTRAP_PASSWORD="$SUPPLIER_BOOTSTRAP_PASSWORD" \
+    ${mail_secret_args[@]+"${mail_secret_args[@]}"} \
     --dry-run=client \
     -o yaml | kubectl apply -f -
 
@@ -220,7 +256,8 @@ else
        Required keys: AUTH_DB_PASSWORD, PRODUCT_DB_PASSWORD, INVENTORY_DB_PASSWORD,
        ORDER_DB_PASSWORD, PAYMENT_DB_PASSWORD, PROCUREMENT_DB_PASSWORD,
        NOTIFICATION_DB_PASSWORD
-       Plus MAIL_USERNAME / MAIL_PASSWORD for an authenticated SMTP relay, and
+       Plus MAIL_USERNAME / MAIL_PASSWORD for the SMTP relay (on AWS:
+       terraform output -raw ses_smtp_username / ses_smtp_password), and
        STRIPE_SECRET_KEY / TWILIO_* if those providers are switched on.
        Plus MYSQL_ADMIN_USERNAME and MYSQL_ADMIN_PASSWORD — the managed instance's
        master credentials, used by the db-bootstrap Job to create the
@@ -243,6 +280,17 @@ else
        The db-bootstrap Job needs the managed instance's master credentials to
        create the per-service databases. Add it, or disable the Job with
        --set dbBootstrap.enabled=false if you provision databases another way."
+  done
+
+  # Clouds have no Mailpit: without the relay credentials every email would retry and
+  # end up on the dead-letter topic, which is easy to miss.
+  for key in MAIL_USERNAME MAIL_PASSWORD; do
+    kubectl get secret mobi-secrets --namespace "$NAMESPACE" \
+      -o "jsonpath={.data.$key}" 2>/dev/null | grep -q . || die \
+      "secret 'mobi-secrets' is missing key $key.
+       notification-service sends through an authenticated SMTP relay on every cloud.
+       On AWS: terraform -chdir=infra/terraform/envs/$ENV_NAME output -raw ses_smtp_username
+       (MAIL_USERNAME) and ses_smtp_password (MAIL_PASSWORD)."
   done
 fi
 

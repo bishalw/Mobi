@@ -340,6 +340,30 @@ kubectl -n mobi port-forward svc/mailpit 8025:8025
 Open http://localhost:8025 to see welcome, order and payment emails. SMS messages
 are written to notification-service's log rather than sent.
 
+**Real emails instead of Mailpit (optional).** To see emails in a real inbox, add an SMTP
+relay to `.env.local` and redeploy with `scripts/deploy.sh local`. Setting `MAIL_HOST`
+is the switch; remove it to go back to Mailpit.
+
+```bash
+# Gmail: needs 2-Step Verification and an App Password (myaccount.google.com/apppasswords)
+MAIL_HOST=smtp.gmail.com
+MAIL_USERNAME=you@gmail.com
+MAIL_PASSWORD=your-16-character-app-password
+MAIL_FROM="Mobi <you@gmail.com>"
+
+# Or the staging SES account (sandbox: only delivers to addresses verified in SES)
+# MAIL_HOST=email-smtp.us-east-1.amazonaws.com
+# MAIL_USERNAME / MAIL_PASSWORD from: terraform -chdir=infra/terraform/envs/aws-staging output -raw ses_smtp_username (and ses_smtp_password)
+# MAIL_FROM="Mobi <no-reply@staging.mobi.example.com>"
+```
+
+Port 587 with STARTTLS and authentication is the default; override with `MAIL_PORT`,
+`MAIL_STARTTLS` and `MAIL_SMTP_AUTH`. Then register an account with your own address to
+get the welcome email. The seed accounts (admin, warehouse, supplier) have made-up
+addresses: with Gmail those bounce, and in the SES sandbox they are refused and recorded
+as skipped (`address rejected`), so staff emails only arrive if you change those users'
+emails to real ones.
+
 **Traces (Jaeger).** Every request is traced across services, the outbox and Kafka:
 
 ```bash

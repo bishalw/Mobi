@@ -145,8 +145,9 @@ config:
   PAYMENT_PROVIDER: simulated
   PAYMENT_CURRENCY: USD
 
-  # Email goes to Mailpit locally; a cloud overlay points these at an SMTP relay such
-  # as Amazon SES and puts MAIL_USERNAME / MAIL_PASSWORD in the Secret.
+  # Email goes to Mailpit locally (MAIL_HOST in .env.local switches kind to a real relay,
+  # see docs/LOCAL_SETUP.md). Clouds use port 587 + STARTTLS + auth from values-cloud.yaml,
+  # MAIL_HOST / MAIL_FROM from Terraform (SES on AWS), MAIL_USERNAME / MAIL_PASSWORD from the Secret.
   MAIL_HOST: mailpit
   MAIL_PORT: "1025"
   MAIL_SMTP_AUTH: "false"

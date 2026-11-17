@@ -17,6 +17,7 @@ modules/
     elasticache/    ElastiCache Redis, subnet group, security group
     msk/            MSK Kafka cluster, security group
     ecr/            ECR repositories for all six services
+    ses/            SES domain identity, DKIM, MAIL FROM, SMTP sending user
 
 envs/
   aws-staging/      2-AZ, t3.medium nodes, db.t3.micro, single-AZ RDS
@@ -37,9 +38,13 @@ bearing.
 
 ```bash
 terraform -chdir=envs/aws-staging init
-terraform -chdir=envs/aws-staging plan  -var="db_password=<your-password>"
-terraform -chdir=envs/aws-staging apply -var="db_password=<your-password>"
+terraform -chdir=envs/aws-staging plan  -var="db_password=<your-password>" -var="mail_domain=staging.mobi.example.com"
+terraform -chdir=envs/aws-staging apply -var="db_password=<your-password>" -var="mail_domain=staging.mobi.example.com"
 ```
+
+Add `-var="route53_zone_id=<zone>"` if the domain is in Route 53, and the DKIM, MAIL FROM
+and DMARC records are created for you. Otherwise add the `ses_dns_records` output at your
+DNS provider by hand.
 
 Then render the Helm values from the outputs and deploy. Outputs are **not**
 pasted into a checked-in values file by hand:
@@ -51,10 +56,10 @@ scripts/deploy.sh aws-staging
 
 ## The output contract
 
-Every env directory must emit nine outputs under fixed names —
+Every env directory must emit eleven outputs under fixed names —
 `cluster_name`, `registry_prefix`, `db_endpoint`, `db_jdbc_params`,
 `redis_endpoint`, `redis_port`, `redis_ssl_enabled`, `kafka_bootstrap`,
-`kafka_security_protocol`.
+`kafka_security_protocol`, `mail_host`, `mail_from`.
 
 `scripts/render-values.sh` reads them by name and refuses to render if any is
 missing, listing all gaps at once. `envs/aws-staging/outputs.tf` is the annotated
@@ -72,6 +77,31 @@ reference copy. Extra outputs beyond the contract are fine —
 | MSK brokers | 2x kafka.t3.small | 3x kafka.m5.large |
 | RDS final snapshot | disabled | enabled |
 | RDS deletion protection | disabled | enabled |
+
+## Email (SES)
+
+`modules/aws/ses` verifies `mail_domain` with Easy DKIM, sets a `mail.<domain>` MAIL FROM
+domain, and creates an IAM user that may only send as that domain. notification-service
+talks to SES over SMTP, so no AWS SDK is involved. Put the SMTP credentials in the
+cluster Secret:
+
+```bash
+terraform -chdir=envs/aws-staging output -raw ses_smtp_username   # -> MAIL_USERNAME
+terraform -chdir=envs/aws-staging output -raw ses_smtp_password   # -> MAIL_PASSWORD
+```
+
+`scripts/deploy.sh` refuses a cloud deploy without them. The access key lives in
+Terraform state, so treat the state bucket as a secret store.
+
+**Sandbox.** A new SES account only delivers to verified addresses (200 a day), which
+is the right state for staging: verify your own address in the SES console and only that
+inbox gets mail. Mail to anyone else is refused, and notification-service records it as
+`address rejected` instead of retrying. **Production** needs a one-off production-access
+request (SES console → Account dashboard, or `aws sesv2 put-account-details`); AWS
+reviews it within about a day.
+
+Bounces and complaints are added to SES's suppression list through the configuration
+set, so a dead address isn't retried on the next order.
 
 ## Kafka topics on MSK
 

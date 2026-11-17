@@ -16,7 +16,7 @@
 # the step that previously had to be repeated per cloud, per environment, and
 # that silently rotted whenever infrastructure was replaced.
 #
-# The nine names read below are the portability contract. Every env directory on
+# The eleven names read below are the portability contract. Every env directory on
 # every cloud must emit them; nothing else here is provider-aware, which is why
 # adding a cloud needs no change to this script.
 
@@ -32,6 +32,8 @@ CONTRACT_OUTPUTS=(
   redis_ssl_enabled
   kafka_bootstrap
   kafka_security_protocol
+  mail_host
+  mail_from
 )
 
 SERVICES=(
@@ -121,7 +123,7 @@ OUTPUTS_JSON="$(terraform -chdir="$ENV_DIR" output -json)" \
   || die "envs/$ENV_NAME has no outputs — apply it before rendering values"
 
 # Enforce the contract. Report every missing name at once: when someone stands up
-# a new cloud, one error listing all gaps is far more useful than nine rounds of
+# a new cloud, one error listing all gaps is far more useful than eleven rounds of
 # fix-one-rerun. Presence is checked with has(), so a legitimately empty value
 # such as db_jdbc_params="" passes.
 missing=()
@@ -146,6 +148,9 @@ REDIS_PORT="$(out redis_port)"
 REDIS_SSL_ENABLED="$(out redis_ssl_enabled)"
 KAFKA_BOOTSTRAP="$(out kafka_bootstrap)"
 KAFKA_SECURITY_PROTOCOL="$(out kafka_security_protocol)"
+MAIL_HOST="$(out mail_host)"
+# JSON-encoded: a display name may hold quotes, and a JSON string is valid YAML.
+MAIL_FROM_YAML="$(jq -c '.mail_from.value' <<<"$OUTPUTS_JSON")"
 
 # Guard the one mistake this file cannot recover from: a SASL protocol needs a
 # JAAS credential that the ConfigMap must never carry. Fail loudly at render time
@@ -190,6 +195,9 @@ OUT_FILE="$REPO_ROOT/helm/mobi/values-$ENV_NAME.generated.yaml"
   echo
   echo "  KAFKA_BOOTSTRAP_SERVERS: \"$KAFKA_BOOTSTRAP\""
   echo "  KAFKA_SECURITY_PROTOCOL: \"$KAFKA_SECURITY_PROTOCOL\""
+  echo
+  echo "  MAIL_HOST: \"$MAIL_HOST\""
+  echo "  MAIL_FROM: $MAIL_FROM_YAML"
   echo
   echo "# The pre-install Job that creates the four per-service databases and users."
   echo "# Enabled for cloud environments in values-cloud.yaml; it needs the raw"

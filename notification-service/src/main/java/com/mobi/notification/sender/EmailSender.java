@@ -1,6 +1,8 @@
 package com.mobi.notification.sender;
 
 import jakarta.mail.MessagingException;
+import jakarta.mail.internet.AddressException;
+import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.MailException;
@@ -11,6 +13,7 @@ import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -50,8 +53,53 @@ public class EmailSender {
         } catch (MessagingException | MailException exp) {
             // Rethrown so the Kafka error handler retries with backoff and, if the mail
             // server stays down, parks the event on the DLT rather than dropping it.
-            throw new DeliveryException("Email to " + to + " failed: " + exp.getMessage(), exp, rejectedAddress(exp));
+            boolean permanent = rejectedAddress(exp) || unverifiedRecipient(exp, to, from);
+            throw new DeliveryException("Email to " + to + " failed: " + exp.getMessage(), exp, permanent);
         }
+    }
+
+    /**
+     * Amazon SES in sandbox mode only delivers to verified addresses and refuses the rest
+     * with "554 Message rejected: Email address is not verified. The following identities
+     * failed the check in region US-EAST-1: someone@example.com". Retrying can't change
+     * that, so it is permanent when the recipient is listed. When our own sender is listed
+     * too, the domain isn't verified yet: our setup is wrong, so it stays retryable.
+     */
+    static boolean unverifiedRecipient(Throwable exp, String to, String from) {
+        String reply = allMessages(exp).toLowerCase(Locale.ROOT);
+        int listed = reply.indexOf("failed the check");
+        if (!reply.contains("not verified") || listed < 0 || to == null) {
+            return false;
+        }
+        // Whole tokens, so admin@x isn't matched inside superadmin@x.
+        java.util.Set<String> identities = java.util.Arrays.stream(
+                        reply.substring(listed).split("[\\s,;:<>]+"))
+                .map(s -> s.replaceAll("\\.$", ""))
+                .collect(java.util.stream.Collectors.toSet());
+        String sender = senderAddress(from);
+        return identities.contains(to.trim().toLowerCase(Locale.ROOT))
+                && (sender == null || !identities.contains(sender));
+    }
+
+    private static String senderAddress(String from) {
+        try {
+            return new InternetAddress(from).getAddress().toLowerCase(Locale.ROOT);
+        } catch (AddressException | RuntimeException exp) {
+            return null;
+        }
+    }
+
+    /** Every message in the chain, including the per-message failures a MailSendException carries. */
+    private static String allMessages(Throwable exp) {
+        StringBuilder all = new StringBuilder(deepestMessage(exp));
+        for (Throwable t = exp; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            if (t instanceof org.springframework.mail.MailSendException send) {
+                for (Exception failed : send.getFailedMessages().values()) {
+                    all.append(' ').append(allMessages(failed));
+                }
+            }
+        }
+        return all.toString();
     }
 
     /**
