@@ -31,7 +31,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         // Who changed stock and why is internal; checked before the public GET below.
                         .requestMatchers(HttpMethod.GET, "/inventoryapi/products/*/adjustments").hasAnyAuthority("ADMIN", "WAREHOUSE")
-                        // Public, except to suppliers: stock levels are internal (procurement spec §12).
+                        // Public, except to suppliers: stock levels are internal.
                         .requestMatchers(HttpMethod.GET, "/inventoryapi/products/**").access(NOT_SUPPLIER)
                         .requestMatchers(HttpMethod.POST, "/inventoryapi/products/*/adjustments").hasAnyAuthority("ADMIN", "WAREHOUSE")
                         .requestMatchers(HttpMethod.PATCH, "/inventoryapi/products/*").hasAnyAuthority("ADMIN", "WAREHOUSE")

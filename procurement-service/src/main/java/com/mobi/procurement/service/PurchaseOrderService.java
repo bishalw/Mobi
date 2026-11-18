@@ -81,8 +81,6 @@ public class PurchaseOrderService {
         this.views = views;
     }
 
-    // --- Reads ---------------------------------------------------------------------
-
     @Transactional(readOnly = true)
     public PageResponse<PurchaseOrderSummary> list(CurrentUser caller, Set<PurchaseOrderStatus> statuses,
                                                    Long supplierId, int page, int size) {

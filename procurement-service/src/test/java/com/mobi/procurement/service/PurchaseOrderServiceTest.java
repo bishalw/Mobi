@@ -296,8 +296,6 @@ class PurchaseOrderServiceTest {
         assertEquals("Mobi Distribution", page.content().get(0).supplierName());
     }
 
-    // --- Receiving -------------------------------------------------------------------
-
     @Test
     void receiptUpdatesTotalsStatusAndPublishesGoodsReceived() {
         PurchaseOrder po = stored(PurchaseOrderStatus.SHIPPED);

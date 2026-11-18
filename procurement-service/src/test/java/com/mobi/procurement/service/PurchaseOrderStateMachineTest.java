@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PurchaseOrderStateMachineTest {
 
-    /** Spec §6.2, written out as a table. Anything not listed must be refused. */
+    /** Anything not listed must be refused. */
     private static final Map<PurchaseOrderAction, Set<PurchaseOrderStatus>> EXPECTED = Map.of(
             PurchaseOrderAction.EDIT, EnumSet.of(DRAFT),
             PurchaseOrderAction.SEND, EnumSet.of(DRAFT),

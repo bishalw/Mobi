@@ -189,7 +189,7 @@ function UserRow({ user, isSelf, busy, onRoleChange, onStatusChange, onUnlock }:
   function changeRole(next: Role) {
     if (next === role) return
     if (next === 'SUPPLIER') {
-      // Until supplier management exists (procurement phase 3) the id is entered by hand;
+      // Until supplier management exists the id is entered by hand;
       // 1 is the seeded "Mobi Distribution".
       const answer = window.prompt('Supplier id this account acts for', String(user.supplierId ?? 1))
       const supplierId = Number(answer)

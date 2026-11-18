@@ -41,7 +41,6 @@ export default function RegisterPage() {
 
   return (
     <div className="flex min-h-screen">
-      {/* Left panel */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between bg-gray-950 p-12">
         <div className="text-white text-2xl font-bold tracking-tight">mobi</div>
         <div>
@@ -55,7 +54,6 @@ export default function RegisterPage() {
         <p className="text-gray-600 text-xs">© 2025 Mobi</p>
       </div>
 
-      {/* Right panel */}
       <div className="flex w-full lg:w-1/2 items-center justify-center bg-white px-8 py-12">
         <div className="w-full max-w-sm">
           <div className="mb-8">

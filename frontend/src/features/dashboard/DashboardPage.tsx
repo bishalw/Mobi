@@ -37,7 +37,6 @@ export default function DashboardPage() {
         <p className="mt-0.5 text-sm text-gray-500">Welcome back, {username}</p>
       </div>
 
-      {/* Stat cards */}
       <div className="mb-8 grid grid-cols-2 gap-4 xl:grid-cols-4">
         <StatCard
           icon={<ShoppingBag size={16} />}
@@ -71,7 +70,6 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Low stock table */}
       <div>
         <h2 className="mb-3 text-sm font-semibold text-gray-900">Low stock items</h2>
 

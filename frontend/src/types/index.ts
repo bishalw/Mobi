@@ -1,4 +1,3 @@
-// Auth
 export interface LoginRequest {
   username: string
   password: string
@@ -27,7 +26,6 @@ export interface RegisterResponse {
   message: string
 }
 
-// Products
 export interface ProductRequest {
   sku: string
   name: string
@@ -47,7 +45,6 @@ export interface ProductResponse {
   updatedAt: string
 }
 
-// Inventory
 export interface InventoryResponse {
   id: number
   productId: number
@@ -82,7 +79,6 @@ export interface StockAdjustmentResult {
   adjustment: StockAdjustment
 }
 
-// Orders
 export type OrderStatus = 'PENDING' | 'INVENTORY_RESERVED' | 'CONFIRMED' | 'CANCELLED' | 'REFUNDED'
 
 export interface CreateOrderItemRequest {
@@ -137,8 +133,6 @@ export interface PaymentResponse {
   updatedAt: string
 }
 
-// Admin
-
 // Shared envelope for every paginated admin list. Both services return this same shape.
 export interface PageResponse<T> {
   content: T[]
@@ -191,8 +185,6 @@ export interface OrderStats {
   totalRevenue: number
   distinctCustomers: number
 }
-
-// --- Procurement (procurement-service) ---------------------------------------------
 
 export interface Supplier {
   id: number

@@ -68,7 +68,6 @@ public class AuthController {
         return ResponseEntity.noContent().header(HttpHeaders.SET_COOKIE, refreshCookie.clear().toString()).build();
     }
 
-    /** Signs the caller out on every device. */
     @PostMapping("/logout-all")
     public ResponseEntity<Void> logoutAll(@AuthenticationPrincipal Jwt jwt) {
         CurrentUser user = CurrentUser.from(jwt);
