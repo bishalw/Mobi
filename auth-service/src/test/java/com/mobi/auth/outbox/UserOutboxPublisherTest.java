@@ -32,7 +32,7 @@ class UserOutboxPublisherTest {
         when(kafkaTemplate.send(eq("user-events"), eq("99"), any(UserEvent.class)))
                 .thenReturn(CompletableFuture.completedFuture(null));
 
-        new UserOutboxPublisher(repository, kafkaTemplate, 7).publishPendingEvents();
+        new UserOutboxPublisher(repository, kafkaTemplate, 7, OutboxTracing.noop()).publishPendingEvents();
 
         assertEquals(OutboxStatus.PUBLISHED, outboxEvent.getStatus());
     }
@@ -53,7 +53,7 @@ class UserOutboxPublisherTest {
         when(kafkaTemplate.send(eq("user-events"), eq("99"), any(UserEvent.class)))
                 .thenReturn(CompletableFuture.failedFuture(new RuntimeException("kafka down")));
 
-        new UserOutboxPublisher(repository, kafkaTemplate, 7).publishPendingEvents();
+        new UserOutboxPublisher(repository, kafkaTemplate, 7, OutboxTracing.noop()).publishPendingEvents();
 
         assertEquals(OutboxStatus.PENDING, outboxEvent.getStatus());
         assertEquals(1, outboxEvent.getAttempts());

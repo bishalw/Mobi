@@ -6,7 +6,6 @@ import { getAllInventory } from '@/api/inventory'
 import { formatCurrency } from '@/lib/format'
 import { useAuthStore } from '@/stores/authStore'
 
-const LOW_STOCK_THRESHOLD = 5
 
 export default function DashboardPage() {
   const username = useAuthStore((s) => s.username)
@@ -26,7 +25,8 @@ export default function DashboardPage() {
   const confirmedOrders = stats?.confirmedOrders ?? 0
   const totalRevenue = stats?.totalRevenue ?? 0
 
-  const lowStockItems = inventory.filter((i) => i.availableQuantity < LOW_STOCK_THRESHOLD)
+  // Each product's own reorder level decides "low"; an empty shelf always counts.
+  const lowStockItems = inventory.filter((i) => i.lowStock || i.availableQuantity === 0)
 
   const productMap = new Map(products.map((p) => [p.id, p]))
 
@@ -37,7 +37,6 @@ export default function DashboardPage() {
         <p className="mt-0.5 text-sm text-gray-500">Welcome back, {username}</p>
       </div>
 
-      {/* Stat cards */}
       <div className="mb-8 grid grid-cols-2 gap-4 xl:grid-cols-4">
         <StatCard
           icon={<ShoppingBag size={16} />}
@@ -71,7 +70,6 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Low stock table */}
       <div>
         <h2 className="mb-3 text-sm font-semibold text-gray-900">Low stock items</h2>
 

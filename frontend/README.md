@@ -27,7 +27,7 @@ npm install
 npm run dev
 ```
 
-App runs at `http://localhost:5173`. API calls are proxied to `http://localhost` (the Kubernetes ingress).
+App runs at `http://localhost:5173`. API calls are proxied to `http://localhost` (the Envoy Gateway edge in the kind cluster). To use an api-gateway run from your IDE instead, put `VITE_API_TARGET=http://localhost:8080` in `frontend/.env.local`.
 
 ## User Roles
 

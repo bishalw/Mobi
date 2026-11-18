@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/layout :: layout(~{::section})}">
+<body>
+<section>
+    <h1 style="font-size:22px;margin:0 0 12px;"><span th:text="${poNumber}">PO-000001</span> rejected</h1>
+    <p style="margin:0 0 12px;"><strong th:text="${supplierName}">The supplier</strong> won't fulfil this order.</p>
+    <p th:if="${note}" style="margin:0;padding:12px;background:#f4f4f5;border-radius:8px;" th:text="${note}">Reason</p>
+    <p style="margin:12px 0 0;color:#52525b;">Raise a new purchase order with another supplier if the stock is still needed.</p>
+</section>
+</body>
+</html>

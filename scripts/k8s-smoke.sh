@@ -20,3 +20,7 @@ echo ""
 echo "Recent notification-service logs:"
 kubectl logs deployment/notification-service --namespace "${K8S_NAMESPACE:-mobi}" --tail=120
 
+echo ""
+echo "Emails sent during the run are in Mailpit:"
+echo "  kubectl -n ${K8S_NAMESPACE:-mobi} port-forward svc/mailpit 8025:8025   then http://localhost:8025"
+

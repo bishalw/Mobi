@@ -18,6 +18,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 import java.util.Set;
 
 @Service
@@ -26,12 +28,16 @@ public class AdminUserService {
     // The set of roles an administrator may assign. Free-text roles would be accepted by
     // the column and then silently fail every authority check, producing an account that
     // looks privileged in the directory and is not.
-    private static final Set<String> ASSIGNABLE_ROLES = Set.of("USER", "ADMIN");
+    private static final Set<String> ASSIGNABLE_ROLES = Set.of("USER", "ADMIN", "WAREHOUSE", "SUPPLIER");
 
     private final UserRepository userRepository;
     private final UserEventPublisher userEventPublisher;
 
-    public AdminUserService(UserRepository userRepository, UserEventPublisher userEventPublisher) {
+    private final RefreshTokenService refreshTokenService;
+
+    public AdminUserService(UserRepository userRepository, UserEventPublisher userEventPublisher,
+                            RefreshTokenService refreshTokenService) {
+        this.refreshTokenService = refreshTokenService;
         this.userRepository = userRepository;
         this.userEventPublisher = userEventPublisher;
     }
@@ -54,9 +60,17 @@ public class AdminUserService {
 
     @Transactional
     public UserSummaryResponse updateRole(Long userId, String role) {
+        return updateRole(userId, role, null);
+    }
+
+    @Transactional
+    public UserSummaryResponse updateRole(Long userId, String role, Long supplierId) {
         String normalised = role == null ? "" : role.trim().toUpperCase();
         if (!ASSIGNABLE_ROLES.contains(normalised)) {
             throw new IllegalArgumentException("Role must be one of " + ASSIGNABLE_ROLES);
+        }
+        if ("SUPPLIER".equals(normalised) && supplierId == null) {
+            throw new IllegalArgumentException("supplierId is required for the SUPPLIER role");
         }
 
         User user = findUser(userId);
@@ -65,7 +79,10 @@ public class AdminUserService {
         // the person who would need to undo it.
         requireNotSelf(userId, "You cannot change your own role");
 
-        user.setRole(normalised);
+        user.assignRole(normalised, supplierId);
+        // Sessions carry the old role and supplier in their tokens; end them so the
+        // change applies at the next login rather than when the refresh token expires.
+        refreshTokenService.revokeAllForUser(userId);
         User saved = userRepository.save(user);
         userEventPublisher.publish(UserEventType.USER_ROLE_CHANGED, saved);
         return UserSummaryResponse.from(saved);
@@ -78,9 +95,35 @@ public class AdminUserService {
 
         user.setEnabled(enabled);
         User saved = userRepository.save(user);
+        if (!enabled) {
+            // Suspension takes effect now, not when the account's sessions would have
+            // expired: no refresh token survives, and the current access token lapses
+            // within its 15 minutes.
+            refreshTokenService.revokeAllForUser(userId);
+        }
         userEventPublisher.publish(
                 enabled ? UserEventType.USER_ENABLED : UserEventType.USER_DISABLED, saved);
         return UserSummaryResponse.from(saved);
+    }
+
+    /** At most one page's worth, so the call cannot be used to dump the whole table. */
+    static final int MAX_LOOKUP_IDS = 100;
+
+    @Transactional(readOnly = true)
+    public List<UserSummaryResponse> getUsersByIds(List<Long> ids) {
+        List<Long> distinct = ids.stream().filter(java.util.Objects::nonNull).distinct().toList();
+        if (distinct.size() > MAX_LOOKUP_IDS) {
+            throw new com.mobi.auth.exception.BadRequestException("At most " + MAX_LOOKUP_IDS + " ids per request");
+        }
+        return userRepository.findAllById(distinct).stream().map(UserSummaryResponse::from).toList();
+    }
+
+    /** Lifts a password lockout early, e.g. after the owner has confirmed their identity. */
+    @Transactional
+    public UserSummaryResponse unlock(Long userId) {
+        User user = findUser(userId);
+        user.unlock();
+        return UserSummaryResponse.from(userRepository.save(user));
     }
 
     // Republishes the current state of every account so a downstream projection can be
@@ -114,8 +157,7 @@ public class AdminUserService {
 
     private void requireNotSelf(Long userId, String message) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof CurrentUser currentUser
-                && userId.equals(currentUser.userId())) {
+        if (CurrentUser.from(authentication).map(user -> userId.equals(user.userId())).orElse(false)) {
             throw new AccessDeniedException(message);
         }
     }

@@ -1,5 +1,5 @@
 import client from './client'
-import type { CreateInventoryRequest, InventoryResponse } from '@/types'
+import type { AdjustmentReason, InventoryResponse, PageResponse, StockAdjustment, StockAdjustmentResult } from '@/types'
 
 export const getAllInventory = () =>
   client.get<InventoryResponse[]>('/inventoryapi/products').then((r) => r.data)
@@ -7,10 +7,16 @@ export const getAllInventory = () =>
 export const getInventory = (productId: number) =>
   client.get<InventoryResponse>(`/inventoryapi/products/${productId}`).then((r) => r.data)
 
-export const createInventory = (data: CreateInventoryRequest) =>
-  client.post<InventoryResponse>('/inventoryapi/products', data).then((r) => r.data)
-
-export const adjustInventory = (productId: number, action: 'reserve' | 'release' | 'deduct', quantity: number) =>
+// The only way to change stock by hand. The first positive adjustment creates the record.
+export const adjustStock = (productId: number, quantityDelta: number, reason: AdjustmentReason, note?: string) =>
   client
-    .post<InventoryResponse>(`/inventoryapi/products/${productId}/${action}`, { quantity })
+    .post<StockAdjustmentResult>(`/inventoryapi/products/${productId}/adjustments`, { quantityDelta, reason, note })
     .then((r) => r.data)
+
+export const getStockHistory = (productId: number, page = 0, size = 20) =>
+  client
+    .get<PageResponse<StockAdjustment>>(`/inventoryapi/products/${productId}/adjustments`, { params: { page, size } })
+    .then((r) => r.data)
+
+export const updateInventoryDetails = (productId: number, data: { warehouseLocation?: string; reorderLevel?: number }) =>
+  client.patch<InventoryResponse>(`/inventoryapi/products/${productId}`, data).then((r) => r.data)

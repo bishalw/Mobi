@@ -78,3 +78,11 @@ module "msk" {
   broker_count               = 2
   broker_instance_type       = "kafka.t3.small"
 }
+
+module "ses" {
+  source = "../../modules/aws/ses"
+
+  name            = "mobi-staging"
+  domain          = var.mail_domain
+  route53_zone_id = var.route53_zone_id
+}

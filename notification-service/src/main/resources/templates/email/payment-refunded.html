@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/layout :: layout(~{::section})}">
+<body>
+<section>
+    <h1 style="font-size:22px;margin:0 0 12px;">Refund issued</h1>
+    <p style="margin:0 0 12px;">We refunded <strong th:text="${#numbers.formatDecimal(amount, 1, 'COMMA', 2, 'POINT')} + ' ' + ${currency}">0.00 USD</strong> for order <strong th:text="|#${orderId}|">#1</strong>.</p>
+    <p style="margin:0;color:#52525b;">Refunds usually appear on your statement within 5 to 10 business days.</p>
+</section>
+</body>
+</html>

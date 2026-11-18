@@ -9,9 +9,27 @@ public class InventoryResponse {
     private Integer availableQuantity;
     private Integer reservedQuantity;
     private String warehouseLocation;
+    private int reorderLevel;
+    private boolean lowStock;
     private Long version;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    public int getReorderLevel() {
+        return reorderLevel;
+    }
+
+    public void setReorderLevel(int reorderLevel) {
+        this.reorderLevel = reorderLevel;
+    }
+
+    public boolean isLowStock() {
+        return lowStock;
+    }
+
+    public void setLowStock(boolean lowStock) {
+        this.lowStock = lowStock;
+    }
 
     public Long getId() {
         return id;

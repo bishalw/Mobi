@@ -3,9 +3,9 @@ package com.mobi.inventory.service;
 import com.mobi.inventory.dto.BatchReserveItemRequest;
 import com.mobi.inventory.dto.BatchReserveRequest;
 import com.mobi.inventory.dto.BatchReserveResponse;
-import com.mobi.inventory.dto.CreateInventoryRequest;
 import com.mobi.inventory.dto.InventoryResponse;
 import com.mobi.inventory.entity.InventoryItem;
+import com.mobi.inventory.event.LowStockAlerts;
 import com.mobi.inventory.entity.Reservation;
 import com.mobi.inventory.entity.ReservationItem;
 import com.mobi.inventory.entity.ReservationStatus;
@@ -32,16 +32,13 @@ public class InventoryServiceImpl implements InventoryService {
 
     private final InventoryRepository inventoryRepository;
     private final ReservationRepository reservationRepository;
+    private final LowStockAlerts lowStockAlerts;
 
-    public InventoryServiceImpl(InventoryRepository inventoryRepository, ReservationRepository reservationRepository) {
+    public InventoryServiceImpl(InventoryRepository inventoryRepository, ReservationRepository reservationRepository,
+                                LowStockAlerts lowStockAlerts) {
         this.inventoryRepository = inventoryRepository;
         this.reservationRepository = reservationRepository;
-    }
-
-    @Override
-    public InventoryResponse createInventory(CreateInventoryRequest request) {
-        InventoryItem item = new InventoryItem(request.getProductId(), request.getAvailableQuantity(), request.getWarehouseLocation());
-        return mapToResponse(inventoryRepository.save(item));
+        this.lowStockAlerts = lowStockAlerts;
     }
 
     @Override
@@ -55,41 +52,6 @@ public class InventoryServiceImpl implements InventoryService {
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
-    }
-
-    @Override
-    @Transactional
-    public InventoryResponse reserve(Long productId, int quantity) {
-        InventoryItem item = findByProductId(productId);
-        if (item.getAvailableQuantity() < quantity) {
-            throw new InsufficientInventoryException("Not enough inventory available for product id: " + productId);
-        }
-        item.setAvailableQuantity(item.getAvailableQuantity() - quantity);
-        item.setReservedQuantity(item.getReservedQuantity() + quantity);
-        return mapToResponse(inventoryRepository.save(item));
-    }
-
-    @Override
-    @Transactional
-    public InventoryResponse release(Long productId, int quantity) {
-        InventoryItem item = findByProductId(productId);
-        if (item.getReservedQuantity() < quantity) {
-            throw new InsufficientInventoryException("Cannot release more inventory than is reserved for product id: " + productId);
-        }
-        item.setReservedQuantity(item.getReservedQuantity() - quantity);
-        item.setAvailableQuantity(item.getAvailableQuantity() + quantity);
-        return mapToResponse(inventoryRepository.save(item));
-    }
-
-    @Override
-    @Transactional
-    public InventoryResponse deduct(Long productId, int quantity) {
-        InventoryItem item = findByProductId(productId);
-        if (item.getReservedQuantity() < quantity) {
-            throw new InsufficientInventoryException("Cannot deduct more inventory than is reserved for product id: " + productId);
-        }
-        item.setReservedQuantity(item.getReservedQuantity() - quantity);
-        return mapToResponse(inventoryRepository.save(item));
     }
 
     @Override
@@ -162,6 +124,47 @@ public class InventoryServiceImpl implements InventoryService {
         log.info("Released reservation {} ({} items)", reservationKey, reservation.getItems().size());
     }
 
+    /**
+     * Puts a sold (confirmed) reservation's quantities back into available stock, after
+     * a refund where the goods came back. Keyed by the reservation, so it can happen at
+     * most once however often it is retried: a second call finds RETURNED and does
+     * nothing.
+     */
+    @Override
+    @Transactional
+    public void returnReservation(String reservationKey) {
+        Reservation reservation = reservationRepository.findByReservationKey(reservationKey)
+                .orElseThrow(() -> new ResourceNotFoundException("Reservation not found: " + reservationKey));
+
+        switch (reservation.getStatus()) {
+            case RETURNED -> { return; }
+            case CONFIRMED -> { /* proceed */ }
+            default -> throw new IllegalReservationStateException(
+                    "Cannot return reservation " + reservationKey + ": it was never sold (" + reservation.getStatus() + ")");
+        }
+
+        List<Long> productIds = reservation.getItems().stream().map(ReservationItem::getProductId).toList();
+        Map<Long, InventoryItem> itemsByProductId = inventoryRepository.findByProductIdInWithLock(productIds)
+                .stream()
+                .collect(Collectors.toMap(InventoryItem::getProductId, Function.identity()));
+
+        for (ReservationItem line : reservation.getItems()) {
+            InventoryItem item = itemsByProductId.get(line.getProductId());
+            if (item == null) {
+                // The product's stock record was deleted since the sale; nothing to add back to.
+                log.warn("Return of {}: no inventory record for product {}, skipping", reservationKey, line.getProductId());
+                continue;
+            }
+            item.setAvailableQuantity(item.getAvailableQuantity() + line.getQuantity());
+            inventoryRepository.save(item);
+        }
+
+        reservation.setStatus(ReservationStatus.RETURNED);
+        reservation.setReturnedAt(LocalDateTime.now());
+        reservationRepository.save(reservation);
+        log.info("Returned reservation {} to stock ({} items)", reservationKey, reservation.getItems().size());
+    }
+
     @Override
     @Transactional
     public void confirmReservation(String reservationKey) {
@@ -169,7 +172,7 @@ public class InventoryServiceImpl implements InventoryService {
                 .orElseThrow(() -> new ResourceNotFoundException("Reservation not found: " + reservationKey));
 
         switch (reservation.getStatus()) {
-            case CONFIRMED -> { return; }
+            case CONFIRMED, RETURNED -> { return; }
             case RELEASED -> throw new IllegalReservationStateException(
                     "Cannot confirm reservation " + reservationKey + ": already RELEASED");
             case EXPIRED -> throw new IllegalReservationStateException(
@@ -200,8 +203,10 @@ public class InventoryServiceImpl implements InventoryService {
 
         for (ReservationItem line : reservation.getItems()) {
             InventoryItem item = itemsByProductId.get(line.getProductId());
+            int unsoldBefore = LowStockAlerts.unsold(item);
             item.setReservedQuantity(item.getReservedQuantity() - line.getQuantity());
             inventoryRepository.save(item);
+            lowStockAlerts.afterChange(item, unsoldBefore, "SALE");
         }
 
         reservation.setStatus(ReservationStatus.CONFIRMED);
@@ -230,15 +235,6 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     private InventoryResponse mapToResponse(InventoryItem item) {
-        InventoryResponse response = new InventoryResponse();
-        response.setId(item.getId());
-        response.setProductId(item.getProductId());
-        response.setAvailableQuantity(item.getAvailableQuantity());
-        response.setReservedQuantity(item.getReservedQuantity());
-        response.setWarehouseLocation(item.getWarehouseLocation());
-        response.setVersion(item.getVersion());
-        response.setCreatedAt(item.getCreatedAt());
-        response.setUpdatedAt(item.getUpdatedAt());
-        return response;
+        return InventoryMapper.toResponse(item);
     }
 }

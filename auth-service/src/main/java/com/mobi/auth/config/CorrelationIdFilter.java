@@ -20,8 +20,8 @@ import java.util.UUID;
  * <p>Deliberately duplicated per service rather than extracted to a shared
  * library: each service is an independently built Maven project whose Dockerfile
  * copies only its own directory, so a shared module would require a parent
- * aggregator and break the image builds. Same reasoning as JwtUtil and
- * ErrorResponse, which are duplicated for the same reason.
+ * aggregator and break the image builds. ErrorResponse and
+ * SecurityErrorResponseWriter are duplicated for the same reason.
  */
 @Component
 public class CorrelationIdFilter extends OncePerRequestFilter {

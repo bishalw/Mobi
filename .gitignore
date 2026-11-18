@@ -41,3 +41,6 @@ helm/mobi/values-*.generated.yaml
 
 # Local backups
 *.git-backup/
+
+# deploy.sh: set while a wiped local database still needs re-seeding
+.mobi-reseed-pending

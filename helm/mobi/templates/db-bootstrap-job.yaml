@@ -71,6 +71,11 @@ spec:
               # every upgrade, and makes the Secret authoritative for the passwords:
               # rotate the Secret, redeploy, and the database users follow.
               #
+              # IDENTIFIED WITH caching_sha2_password: MySQL 8.4 turns the old
+              # mysql_native_password plugin off by default, and users created on 8.0
+              # may still use it. Re-asserting the plugin on every run converts them, so
+              # service logins keep working across the 8.0 -> 8.4 upgrade.
+              #
               # No FLUSH PRIVILEGES — CREATE USER and GRANT already reload the grant
               # tables, and it needs the RELOAD privilege, which a managed instance's
               # master user is not always given.
@@ -79,8 +84,8 @@ spec:
               {{- $user := index $ctx.Values.config (printf "%s_DB_USERNAME" .prefix) }}
               CREATE DATABASE IF NOT EXISTS \`{{ .name }}\`
                   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-              CREATE USER IF NOT EXISTS '{{ $user }}'@'%' IDENTIFIED BY '${{ printf "{%s_DB_PASSWORD}" .prefix }}';
-              ALTER USER '{{ $user }}'@'%' IDENTIFIED BY '${{ printf "{%s_DB_PASSWORD}" .prefix }}';
+              CREATE USER IF NOT EXISTS '{{ $user }}'@'%' IDENTIFIED WITH caching_sha2_password BY '${{ printf "{%s_DB_PASSWORD}" .prefix }}';
+              ALTER USER '{{ $user }}'@'%' IDENTIFIED WITH caching_sha2_password BY '${{ printf "{%s_DB_PASSWORD}" .prefix }}';
               GRANT ALL PRIVILEGES ON \`{{ .name }}\`.* TO '{{ $user }}'@'%';
               {{- end }}
               SQL

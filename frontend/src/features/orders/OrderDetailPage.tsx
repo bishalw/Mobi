@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
@@ -5,21 +6,11 @@ import toast from 'react-hot-toast'
 import { getOrder, cancelOrder, confirmOrder } from '@/api/orders'
 import { useAuthStore } from '@/stores/authStore'
 import { formatCurrency, formatDate } from '@/lib/format'
-import type { OrderStatus } from '@/types'
+import { orderStatusLabel as statusLabel, orderStatusStyle as statusStyle } from './orderStatus'
+import PaymentPanel from './PaymentPanel'
+import PaymentHistory from './PaymentHistory'
+import RefundDialog from './RefundDialog'
 
-const statusStyle: Record<OrderStatus, string> = {
-  PENDING: 'bg-gray-100 text-gray-600',
-  INVENTORY_RESERVED: 'bg-amber-100 text-amber-700',
-  CONFIRMED: 'bg-green-100 text-green-700',
-  CANCELLED: 'bg-red-100 text-red-600',
-}
-
-const statusLabel: Record<OrderStatus, string> = {
-  PENDING: 'Pending',
-  INVENTORY_RESERVED: 'Reserved',
-  CONFIRMED: 'Confirmed',
-  CANCELLED: 'Cancelled',
-}
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -28,6 +19,7 @@ export default function OrderDetailPage() {
   const isAdmin = role === 'ADMIN'
   const qc = useQueryClient()
   const orderId = Number(id)
+  const [refunding, setRefunding] = useState(false)
 
   const { data: order, isLoading, isError } = useQuery({
     queryKey: ['orders', orderId],
@@ -47,7 +39,7 @@ export default function OrderDetailPage() {
     mutationFn: () => confirmOrder(orderId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['orders', orderId] })
-      toast.success('Order confirmed')
+      toast.success('Order confirmed without payment')
     },
     onError: () => toast.error('Failed to confirm order'),
   })
@@ -57,6 +49,8 @@ export default function OrderDetailPage() {
 
   const canCancel = order.status === 'PENDING' || order.status === 'INVENTORY_RESERVED'
   const canConfirm = isAdmin && order.status === 'INVENTORY_RESERVED'
+  const canPay = order.status === 'INVENTORY_RESERVED'
+  const canRefund = isAdmin && order.status === 'CONFIRMED' && !!order.paymentId
 
   return (
     <div className="max-w-2xl">
@@ -70,7 +64,10 @@ export default function OrderDetailPage() {
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-lg font-semibold text-gray-900">Order #{order.id}</h1>
-          <p className="mt-0.5 text-xs text-gray-400">Placed {formatDate(order.createdAt)}</p>
+          <p className="mt-0.5 text-xs text-gray-400">
+            Placed {formatDate(order.createdAt)}
+            {order.status === 'REFUNDED' && (order.restocked ? ' · items returned to stock' : ' · items not restocked')}
+          </p>
         </div>
         <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${statusStyle[order.status]}`}>
           {statusLabel[order.status]}
@@ -108,14 +105,26 @@ export default function OrderDetailPage() {
         </table>
       </div>
 
+      {canPay && <PaymentPanel orderId={order.id} total={order.totalAmount} />}
+      <PaymentHistory orderId={order.id} />
+
       <div className="flex gap-2">
         {canConfirm && (
           <button
             onClick={() => confirmMutation.mutate()}
             disabled={confirmMutation.isPending}
-            className="rounded-md bg-green-600 px-4 py-2 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+            title="Admin override: confirms the order and its reservation without charging"
+            className="rounded-md border border-gray-300 px-4 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
           >
-            {confirmMutation.isPending ? 'Confirming…' : 'Confirm order'}
+            {confirmMutation.isPending ? 'Confirming…' : 'Confirm without payment'}
+          </button>
+        )}
+        {canRefund && (
+          <button
+            onClick={() => setRefunding(true)}
+            className="rounded-md border border-red-200 px-4 py-2 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
+          >
+            Refund order
           </button>
         )}
         {canCancel && (
@@ -128,6 +137,8 @@ export default function OrderDetailPage() {
           </button>
         )}
       </div>
+
+      {refunding && <RefundDialog orderId={order.id} amount={order.totalAmount} onClose={() => setRefunding(false)} />}
     </div>
   )
 }

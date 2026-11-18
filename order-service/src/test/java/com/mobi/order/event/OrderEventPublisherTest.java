@@ -20,7 +20,7 @@ class OrderEventPublisherTest {
     @Test
     void publishEnqueuesOrderEventInOutbox() {
         OutboxEventRepository repository = mock(OutboxEventRepository.class);
-        OrderEventPublisher publisher = new OrderEventPublisher(repository, "order-events");
+        OrderEventPublisher publisher = new OrderEventPublisher(repository, "order-events", com.mobi.order.outbox.OutboxTracing.noop());
         CustomerOrder order = new CustomerOrder();
         order.setId(42L);
         order.setUserId(7L);

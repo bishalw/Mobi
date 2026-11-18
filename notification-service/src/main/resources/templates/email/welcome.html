@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/layout :: layout(~{::section})}">
+<body>
+<section>
+    <h1 style="font-size:22px;margin:0 0 12px;">Welcome, <span th:text="${username}">there</span></h1>
+    <p style="margin:0 0 12px;">Your Mobi account is ready. Browse the latest phones, check stock in real time, and track every order from checkout to doorstep.</p>
+    <p style="margin:0;color:#52525b;">If you did not create this account, you can ignore this email.</p>
+</section>
+</body>
+</html>

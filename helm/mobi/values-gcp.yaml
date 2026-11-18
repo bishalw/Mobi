@@ -1,47 +1,21 @@
-# GCP overlay — GKE with the built-in GCE ingress controller.
+# GCP overlay: GKE.
 #
-# Ingress flavour only. Endpoints and registry come from the generated values.
+# The Envoy Service is a plain LoadBalancer, which GKE turns into a passthrough
+# Network Load Balancer that preserves client IPs. That removes the GCE Ingress
+# health-check trap this file used to work around with a BackendConfig: Envoy, not
+# the cloud load balancer, now decides which api-gateway pods are healthy.
 #
-# The gotcha this file exists to solve: the GCE load balancer has no equivalent of
-# ALB's healthcheck-path annotation. Without the BackendConfig below it probes "/",
-# gets a 404 from api-gateway, and marks every backend UNHEALTHY — the deploy looks
-# broken for reasons nothing in the pod logs explains.
+# Endpoints and registry come from the generated values.
 
-ingress:
-  className: gce
-  annotations: {}
+gateway:
+  proxy:
+    service:
+      annotations: {}
+        # Reserve a regional static IP and pin it here so DNS survives a re-create:
+        # networking.gke.io/load-balancer-ip-addresses: mobi-edge-ip
 
-    # For HTTPS, reserve a global IP and a ManagedCertificate, then reference them:
-    # kubernetes.io/ingress.global-static-ip-name: mobi-ingress-ip
-    # networking.gke.io/managed-certificates: mobi-cert
-
-services:
-  api-gateway:
-    annotations:
-      # Container-native load balancing: route to pod IPs instead of node ports.
-      cloud.google.com/neg: '{"ingress": true}'
-      # Binds the health check defined below to this Service's backend.
-      cloud.google.com/backend-config: '{"default":"api-gateway"}'
-
-extraManifests:
-  - apiVersion: cloud.google.com/v1
-    kind: BackendConfig
-    metadata:
-      name: api-gateway
-      namespace: '{{ include "mobi.namespace" . }}'
-    spec:
-      healthCheck:
-        type: HTTP
-        requestPath: /actuator/health/readiness
-        port: 8080
-
-  # HTTPS also needs a ManagedCertificate naming the domain; add it here once DNS
-  # resolves to the ingress IP, and uncomment the annotation above.
-  # - apiVersion: networking.gke.io/v1
-  #   kind: ManagedCertificate
-  #   metadata:
-  #     name: mobi-cert
-  #     namespace: '{{ include "mobi.namespace" . }}'
-  #   spec:
-  #     domains:
-  #       - mobi.example.com
+  # For HTTPS, as on AWS: hostname plus a TLS Secret from cert-manager.
+  # hostname: mobi.example.com
+  # tls:
+  #   enabled: true
+  #   secretName: mobi-tls

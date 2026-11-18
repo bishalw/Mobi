@@ -1,0 +1,60 @@
+package com.mobi.procurement.outbox;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.concurrent.TimeUnit;
+
+@Component
+public class ProcurementOutboxPublisher {
+
+    private final OutboxEventRepository outboxEventRepository;
+    private final KafkaTemplate<String, String> kafkaTemplate;
+    private final Duration retention;
+    private final OutboxTracing outboxTracing;
+
+    public ProcurementOutboxPublisher(OutboxEventRepository outboxEventRepository,
+                                      KafkaTemplate<String, String> kafkaTemplate,
+                                      @Value("${outbox.retention-days:7}") long retentionDays,
+                                      OutboxTracing outboxTracing) {
+        this.outboxEventRepository = outboxEventRepository;
+        this.kafkaTemplate = kafkaTemplate;
+        this.retention = Duration.ofDays(retentionDays);
+        this.outboxTracing = outboxTracing;
+    }
+
+    @Scheduled(fixedDelayString = "${outbox.publisher.delay-ms:5000}")
+    @Transactional
+    public void publishPendingEvents() {
+        for (OutboxEvent event : outboxEventRepository.findTop50ByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING)) {
+            try {
+                outboxTracing.runInTrace(event.getTraceparent(), "outbox publish " + event.getTopic(), () -> send(event));
+                event.markPublished();
+            } catch (Exception exp) {
+                event.markFailed(exp.getMessage());
+            }
+        }
+    }
+
+    @Scheduled(cron = "${outbox.cleanup.cron:0 0 3 * * *}")
+    @Transactional
+    public void cleanupPublishedEvents() {
+        outboxEventRepository.deleteByStatusAndPublishedAtBefore(OutboxStatus.PUBLISHED, LocalDateTime.now().minus(retention));
+    }
+
+    private void send(OutboxEvent event) {
+        try {
+            kafkaTemplate.send(event.getTopic(), event.getEventKey(), event.getPayloadJson()).get(5, TimeUnit.SECONDS);
+        } catch (InterruptedException exp) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while publishing outbox event " + event.getId(), exp);
+        } catch (Exception exp) {
+            throw new IllegalStateException(exp.getMessage(), exp);
+        }
+    }
+}

@@ -2,12 +2,15 @@ package com.mobi.order.exception;
 
 import feign.FeignException;
 import feign.RetryableException;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import com.mobi.order.exception.FeignErrorParser;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.oauth2.core.OAuth2AuthorizationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -20,6 +23,8 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
@@ -40,6 +45,38 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorResponse handleOrderCreation(OrderCreationException exp, HttpServletRequest request) {
         return new ErrorResponse(LocalDateTime.now(), HttpStatus.CONFLICT.value(), "Conflict", exp.getMessage(), request.getRequestURI(), null);
+    }
+
+    @ExceptionHandler(PaymentDeclinedException.class)
+    @ResponseStatus(HttpStatus.PAYMENT_REQUIRED)
+    public ErrorResponse handlePaymentDeclined(PaymentDeclinedException exp, HttpServletRequest request) {
+        return new ErrorResponse(LocalDateTime.now(), HttpStatus.PAYMENT_REQUIRED.value(), "Payment Required", exp.getMessage(), request.getRequestURI(),
+                exp.getFailureCode() == null ? null : java.util.Map.of("failureCode", exp.getFailureCode()));
+    }
+
+    // A breaker is open: the dependency has been failing and the call was not attempted.
+    @ExceptionHandler(CallNotPermittedException.class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    public ErrorResponse handleCircuitOpen(CallNotPermittedException exp, HttpServletRequest request) {
+        return new ErrorResponse(LocalDateTime.now(), HttpStatus.SERVICE_UNAVAILABLE.value(), "Service Unavailable",
+                "A required service is temporarily unavailable; retry shortly", request.getRequestURI(), null);
+    }
+
+    // order-service could not get its own service token, so it cannot call inventory
+    // or payment. Nothing was attempted downstream; the client can safely retry.
+    @ExceptionHandler(OAuth2AuthorizationException.class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    public ErrorResponse handleServiceTokenUnavailable(OAuth2AuthorizationException exp, HttpServletRequest request) {
+        log.warn("Could not obtain a service token: {}", exp.getError());
+        return new ErrorResponse(LocalDateTime.now(), HttpStatus.SERVICE_UNAVAILABLE.value(), "Service Unavailable",
+                "A required service is temporarily unavailable; retry shortly", request.getRequestURI(), null);
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorResponse handleConcurrentUpdate(ObjectOptimisticLockingFailureException exp, HttpServletRequest request) {
+        return new ErrorResponse(LocalDateTime.now(), HttpStatus.CONFLICT.value(), "Conflict",
+                "The order was updated by another request; reload and retry", request.getRequestURI(), null);
     }
 
     @ExceptionHandler(FeignException.NotFound.class)

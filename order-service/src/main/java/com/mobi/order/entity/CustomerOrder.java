@@ -13,6 +13,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -39,6 +40,20 @@ public class CustomerOrder {
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
+
+    @Column(length = 36)
+    private String paymentId;
+
+    @Column(nullable = false)
+    private int paymentAttempts;
+
+    // Set when a refund also put the items back into available stock.
+    @Column(nullable = false)
+    private boolean restocked;
+
+    @Version
+    @Column(nullable = false)
+    private Long version = 0L;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -117,5 +132,33 @@ public class CustomerOrder {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getPaymentId() {
+        return paymentId;
+    }
+
+    public void setPaymentId(String paymentId) {
+        this.paymentId = paymentId;
+    }
+
+    public boolean isRestocked() {
+        return restocked;
+    }
+
+    public void setRestocked(boolean restocked) {
+        this.restocked = restocked;
+    }
+
+    public int getPaymentAttempts() {
+        return paymentAttempts;
+    }
+
+    public void incrementPaymentAttempts() {
+        this.paymentAttempts++;
+    }
+
+    public Long getVersion() {
+        return version;
     }
 }

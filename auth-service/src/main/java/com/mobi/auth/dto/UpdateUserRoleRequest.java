@@ -7,6 +7,9 @@ public class UpdateUserRoleRequest {
     @NotBlank(message = "Role is required")
     private String role;
 
+    // Required when role is SUPPLIER; ignored otherwise.
+    private Long supplierId;
+
     public UpdateUserRoleRequest() {
     }
 
@@ -20,5 +23,13 @@ public class UpdateUserRoleRequest {
 
     public void setRole(String role) {
         this.role = role;
+    }
+
+    public Long getSupplierId() {
+        return supplierId;
+    }
+
+    public void setSupplierId(Long supplierId) {
+        this.supplierId = supplierId;
     }
 }

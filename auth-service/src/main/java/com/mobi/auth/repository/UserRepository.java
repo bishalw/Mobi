@@ -17,6 +17,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     // Both columns are searched so an administrator can paste in whichever identifier
     // they happen to have. Paged at the database, never in memory.
+    java.util.Optional<User> findByEmail(String email);
+
+    java.util.List<User> findByRoleIn(java.util.Collection<String> roles);
+
     Page<User> findByUsernameContainingIgnoreCaseOrEmailContainingIgnoreCase(
             String username, String email, Pageable pageable);
 }

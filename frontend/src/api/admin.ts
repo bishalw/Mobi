@@ -24,15 +24,26 @@ export const getUsers = (params: PageParams = {}) =>
 export const getUser = (userId: number) =>
   client.get<AdminUser>(`/auth/admin/users/${userId}`).then((r) => r.data)
 
-export const updateUserRole = (userId: number, role: string) =>
+// supplierId is required for SUPPLIER and ignored for other roles.
+export const updateUserRole = (userId: number, role: string, supplierId?: number) =>
   client
-    .patch<AdminUser>(`/auth/admin/users/${userId}/role`, { role })
+    .patch<AdminUser>(`/auth/admin/users/${userId}/role`, { role, supplierId })
     .then((r) => r.data)
 
 export const updateUserStatus = (userId: number, enabled: boolean) =>
   client
     .patch<AdminUser>(`/auth/admin/users/${userId}/status`, { enabled })
     .then((r) => r.data)
+
+// Several users by id in one request (max 100), for pages that only know user ids.
+export const getUsersByIds = (ids: number[]) =>
+  client
+    .get<AdminUser[]>('/auth/admin/users/by-ids', { params: { ids: ids.join(',') } })
+    .then((r) => r.data)
+
+// Lifts a password lockout before it expires.
+export const unlockUser = (userId: number) =>
+  client.post<AdminUser>(`/auth/admin/users/${userId}/unlock`).then((r) => r.data)
 
 export const replayUserSnapshots = () =>
   client.post<{ published: number }>('/auth/admin/users/replay').then((r) => r.data)

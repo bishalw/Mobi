@@ -1,0 +1,16 @@
+<!--/* Order line items and total, reused by the order emails. */-->
+<table th:fragment="items" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:16px 0;">
+    <tr th:each="item : ${items}">
+        <td style="padding:8px 0;border-bottom:1px solid #f4f4f5;">
+            <span th:text="${item.productName}">Phone</span>
+            <span style="color:#71717a;" th:text="' × ' + ${item.quantity}"> × 1</span>
+        </td>
+        <td align="right" style="padding:8px 0;border-bottom:1px solid #f4f4f5;white-space:nowrap;"
+            th:text="'$' + ${#numbers.formatDecimal(item.lineTotal, 1, 'COMMA', 2, 'POINT')}">$0.00</td>
+    </tr>
+    <tr>
+        <td style="padding:12px 0 0;font-weight:600;">Total</td>
+        <td align="right" style="padding:12px 0 0;font-weight:600;"
+            th:text="'$' + ${#numbers.formatDecimal(total, 1, 'COMMA', 2, 'POINT')}">$0.00</td>
+    </tr>
+</table>

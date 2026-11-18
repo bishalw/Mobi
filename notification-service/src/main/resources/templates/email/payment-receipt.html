@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/layout :: layout(~{::section})}">
+<body>
+<section>
+    <h1 style="font-size:22px;margin:0 0 12px;">Payment received</h1>
+    <p style="margin:0 0 16px;">We received your payment for order <strong th:text="|#${orderId}|">#1</strong>.</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;">
+        <tr><td style="padding:4px 0;color:#71717a;">Amount</td><td align="right" th:text="${#numbers.formatDecimal(amount, 1, 'COMMA', 2, 'POINT')} + ' ' + ${currency}">0.00 USD</td></tr>
+        <tr th:if="${cardLast4}"><td style="padding:4px 0;color:#71717a;">Card</td><td align="right" th:text="${cardBrand} + ' •••• ' + ${cardLast4}">visa •••• 4242</td></tr>
+        <tr><td style="padding:4px 0;color:#71717a;">Payment ID</td><td align="right" style="font-family:monospace;font-size:12px;" th:text="${paymentId}">id</td></tr>
+    </table>
+</section>
+</body>
+</html>

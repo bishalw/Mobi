@@ -1,18 +1,28 @@
-# AWS overlay — EKS with the AWS Load Balancer Controller.
+# AWS overlay: EKS. The Envoy edge proxy is exposed through a Network Load Balancer
+# provisioned by the AWS Load Balancer Controller.
 #
-# Ingress flavour only. Image registry, database, Redis, and Kafka endpoints all
+# Load balancer flavour only. Image registry, database, Redis, and Kafka endpoints all
 # arrive from values-<env>.generated.yaml, rendered from `terraform output`.
 # Nothing in this file needs an account ID, a region, or a hostname.
+#
+# An NLB rather than an ALB because Envoy now does the layer-7 work (routing, retries,
+# rate limits) the ALB used to; the load balancer only has to pass TCP through.
 
-ingress:
-  className: alb
-  annotations:
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/healthcheck-path: /actuator/health/readiness
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+gateway:
+  proxy:
+    service:
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-type: external
+        service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+        # Route straight to Envoy pod IPs, skipping the extra node-port hop.
+        service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+        # With IP targets the NLB hides the client address unless told otherwise, and
+        # Envoy's per-IP rate limit would then see every request as the NLB.
+        service.beta.kubernetes.io/aws-load-balancer-target-group-attributes: preserve_client_ip.enabled=true
 
-    # For HTTPS, point at an ACM certificate and swap the listener:
-    # alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:<region>:<account>:certificate/<id>
-    # alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
-    # alb.ingress.kubernetes.io/ssl-redirect: "443"
+  # For HTTPS: set gateway.hostname, issue a certificate into a Secret (cert-manager
+  # with a Let's Encrypt or ACM PCA issuer), then enable the Gateway's TLS listener:
+  # hostname: mobi.example.com
+  # tls:
+  #   enabled: true
+  #   secretName: mobi-tls

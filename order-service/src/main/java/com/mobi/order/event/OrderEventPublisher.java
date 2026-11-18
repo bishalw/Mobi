@@ -7,6 +7,7 @@ import com.mobi.order.entity.CustomerOrder;
 import com.mobi.order.entity.OrderItem;
 import com.mobi.order.outbox.OutboxEvent;
 import com.mobi.order.outbox.OutboxEventRepository;
+import com.mobi.order.outbox.OutboxTracing;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -18,10 +19,13 @@ public class OrderEventPublisher {
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
     private final String orderEventsTopic;
+    private final OutboxTracing outboxTracing;
 
     public OrderEventPublisher(OutboxEventRepository outboxEventRepository,
-                               @Value("${orders.kafka.topic}") String orderEventsTopic) {
+                               @Value("${orders.kafka.topic}") String orderEventsTopic,
+                               OutboxTracing outboxTracing) {
         this.outboxEventRepository = outboxEventRepository;
+        this.outboxTracing = outboxTracing;
         this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
         this.orderEventsTopic = orderEventsTopic;
     }
@@ -37,13 +41,15 @@ public class OrderEventPublisher {
         );
 
         try {
-            outboxEventRepository.save(new OutboxEvent(
+            OutboxEvent outboxEvent = new OutboxEvent(
                     orderEventsTopic,
                     String.valueOf(order.getId()),
                     String.valueOf(order.getId()),
                     eventType.name(),
                     objectMapper.writeValueAsString(event)
-            ));
+            );
+            outboxEvent.setTraceparent(outboxTracing.currentTraceparent());
+            outboxEventRepository.save(outboxEvent);
         } catch (JsonProcessingException exp) {
             throw new IllegalStateException("Unable to serialize order event", exp);
         }

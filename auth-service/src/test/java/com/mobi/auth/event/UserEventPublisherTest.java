@@ -17,7 +17,7 @@ class UserEventPublisherTest {
     @Test
     void publishEnqueuesUserEventInOutbox() {
         OutboxEventRepository repository = mock(OutboxEventRepository.class);
-        UserEventPublisher publisher = new UserEventPublisher(repository, "user-events");
+        UserEventPublisher publisher = new UserEventPublisher(repository, "user-events", com.mobi.auth.outbox.OutboxTracing.noop());
         User user = new User("alice", "hashed", "USER");
         user.setId(99L);
 

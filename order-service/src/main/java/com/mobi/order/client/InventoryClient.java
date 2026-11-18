@@ -17,4 +17,8 @@ public interface InventoryClient {
 
     @PostMapping("/inventoryapi/reservations/{reservationKey}/confirm")
     void confirmReservation(@PathVariable String reservationKey);
+
+    // Puts a confirmed (sold) reservation back into stock. Idempotent.
+    @PostMapping("/inventoryapi/reservations/{reservationKey}/return")
+    void returnReservation(@PathVariable String reservationKey);
 }

@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/layout :: layout(~{::section})}">
+<body>
+<section>
+    <h1 style="font-size:22px;margin:0 0 12px;">Order confirmed</h1>
+    <p style="margin:0;">Thanks, <span th:text="${username}">there</span>. Order <strong th:text="|#${orderId}|">#1</strong> is paid and confirmed. We will email you again when it ships.</p>
+    <table th:replace="~{email/items :: items}"></table>
+</section>
+</body>
+</html>

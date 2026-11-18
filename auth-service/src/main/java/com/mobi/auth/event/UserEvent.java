@@ -14,6 +14,7 @@ public class UserEvent {
     private Long userId;
     private String username;
     private String email;
+    private String phone;
     private String role;
     private boolean enabled;
     private LocalDateTime createdAt;
@@ -27,6 +28,12 @@ public class UserEvent {
 
     public UserEvent(UserEventType eventType, Long userId, String username, String email,
                      String role, boolean enabled, LocalDateTime createdAt) {
+        this(eventType, userId, username, email, null, role, enabled, createdAt);
+    }
+
+    public UserEvent(UserEventType eventType, Long userId, String username, String email, String phone,
+                     String role, boolean enabled, LocalDateTime createdAt) {
+        this.phone = phone;
         this.eventId = UUID.randomUUID().toString();
         this.eventType = eventType;
         this.userId = userId;
@@ -64,4 +71,12 @@ public class UserEvent {
 
     public LocalDateTime getOccurredAt() { return occurredAt; }
     public void setOccurredAt(LocalDateTime occurredAt) { this.occurredAt = occurredAt; }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
 }

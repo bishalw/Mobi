@@ -21,18 +21,18 @@ else
   echo "kind cluster '$CLUSTER_NAME' already exists"
 fi
 
-kubectl label node "$CLUSTER_NAME-control-plane" ingress-ready=true --overwrite
-
-helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx >/dev/null
 helm repo add bitnami https://charts.bitnami.com/bitnami >/dev/null
 helm repo update
 
-helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
-  --namespace ingress-nginx \
-  --create-namespace \
-  --values k8s/infra/ingress-nginx/values.yaml \
-  --wait \
-  --timeout 5m
+# Clusters created before the move to Gateway API still run the retired ingress-nginx
+# controller. Remove it so it cannot keep serving stale routes on the same ports.
+if helm status ingress-nginx --namespace ingress-nginx >/dev/null 2>&1; then
+  echo "==> removing retired ingress-nginx"
+  helm uninstall ingress-nginx --namespace ingress-nginx --wait
+  kubectl delete namespace ingress-nginx --ignore-not-found
+fi
+
+"$(dirname "${BASH_SOURCE[0]}")/install-envoy-gateway.sh"
 
 kubectl apply -f k8s/base/namespace.yaml
 

@@ -25,7 +25,12 @@ resource "aws_security_group" "this" {
 resource "aws_db_instance" "this" {
   identifier              = var.name
   engine                  = "mysql"
-  engine_version          = "8.0"
+  # 8.4 is MySQL's long-term-support line (8.0 reached end of life in April 2026). Kept on
+  # the same major version as the local cluster (k8s/infra/mysql/mysql.yaml). RDS picks
+  # the newest 8.4 minor and applies minor upgrades in the maintenance window.
+  engine_version              = "8.4"
+  allow_major_version_upgrade = true
+  auto_minor_version_upgrade  = true
   instance_class          = var.instance_class
   allocated_storage       = var.allocated_storage
   # No initial database. The app needs four (authdb, productdb, inventorydb,
@@ -44,7 +49,19 @@ resource "aws_db_instance" "this" {
   skip_final_snapshot     = var.skip_final_snapshot
   deletion_protection     = !var.skip_final_snapshot
   multi_az                = var.multi_az
+  # Also what makes a major upgrade recoverable: with backups on, RDS keeps point-in-time
+  # recovery across the upgrade (and blue/green needs binary logs, which this enables).
   backup_retention_period = 7
+  copy_tags_to_snapshot   = true
+  maintenance_window      = var.maintenance_window
+
+  # Engine upgrades (such as 8.0 -> 8.4) go through an RDS Blue/Green deployment: a copy
+  # on the new version is built and kept in sync while the current instance serves
+  # traffic, then switched over in about a minute, instead of the instance being down for
+  # the whole in-place upgrade. Runbook: infra/terraform/README.md, "MySQL upgrades".
+  blue_green_update {
+    enabled = true
+  }
 
   tags = { Name = var.name }
 }

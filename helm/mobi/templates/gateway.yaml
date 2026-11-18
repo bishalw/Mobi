@@ -1,0 +1,177 @@
+{{- /*
+  Edge routing on the Kubernetes Gateway API, served by Envoy Gateway. This replaces
+  the Ingress that ingress-nginx served before that controller was retired.
+
+  Four resources, each with one job:
+    EnvoyProxy             how the Envoy pods and their Service are run (per cloud)
+    Gateway                the listeners: ports, hostnames, TLS
+    HTTPRoute              which paths go to api-gateway
+    BackendTrafficPolicy   edge protection: per-IP rate limit, safe retries, timeouts
+*/ -}}
+{{- if .Values.gateway.enabled }}
+{{- $ns := include "mobi.namespace" . }}
+{{- $gw := .Values.gateway }}
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: mobi-edge
+  namespace: {{ $ns }}
+  labels:
+    {{- include "mobi.labels" . | nindent 4 }}
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyDeployment:
+        replicas: {{ $gw.proxy.replicas }}
+        {{- with $gw.proxy.resources }}
+        container:
+          resources:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+      envoyService:
+        type: {{ $gw.proxy.service.type }}
+        {{- if ne $gw.proxy.service.type "ClusterIP" }}
+        # Local (the default) keeps the client's real source IP, which the per-IP rate
+        # limits key on.
+        externalTrafficPolicy: {{ $gw.proxy.service.externalTrafficPolicy | default "Local" }}
+        {{- end }}
+        {{- with $gw.proxy.service.annotations }}
+        annotations:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with $gw.proxy.service.nodePorts }}
+        # Pins the generated Service's node ports so kind's host port mapping can find
+        # them. Strategic merge matches the existing port entries by their port number.
+        patch:
+          type: StrategicMerge
+          value:
+            spec:
+              ports:
+                {{- if .http }}
+                - port: 80
+                  nodePort: {{ .http }}
+                {{- end }}
+                {{- if and .https $gw.tls.enabled }}
+                - port: 443
+                  nodePort: {{ .https }}
+                {{- end }}
+        {{- end }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: mobi
+  namespace: {{ $ns }}
+  labels:
+    {{- include "mobi.labels" . | nindent 4 }}
+spec:
+  gatewayClassName: {{ $gw.className }}
+  infrastructure:
+    parametersRef:
+      group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      name: mobi-edge
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      {{- with $gw.hostname }}
+      hostname: {{ . | quote }}
+      {{- end }}
+      allowedRoutes:
+        namespaces:
+          from: Same
+    {{- if $gw.tls.enabled }}
+    - name: https
+      protocol: HTTPS
+      port: 443
+      {{- with $gw.hostname }}
+      hostname: {{ . | quote }}
+      {{- end }}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: {{ required "gateway.tls.secretName is required when gateway.tls.enabled is true" $gw.tls.secretName }}
+      allowedRoutes:
+        namespaces:
+          from: Same
+    {{- end }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: api-gateway
+  namespace: {{ $ns }}
+  labels:
+    {{- include "mobi.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    - name: mobi
+  {{- with $gw.hostname }}
+  hostnames:
+    - {{ . | quote }}
+  {{- end }}
+  rules:
+    - matches:
+        {{- range $gw.routes.paths }}
+        - path:
+            type: PathPrefix
+            value: {{ . }}
+        {{- end }}
+      backendRefs:
+        - name: {{ $gw.routes.service }}
+          port: {{ $gw.routes.port }}
+      timeouts:
+        request: {{ $gw.routes.requestTimeout }}
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: api-gateway-edge
+  namespace: {{ $ns }}
+  labels:
+    {{- include "mobi.labels" . | nindent 4 }}
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: api-gateway
+  {{- if $gw.edgeRateLimit.enabled }}
+  # Coarse flood protection per client IP, enforced inside Envoy before a request costs
+  # anything. The fine-grained, per-user limits live in api-gateway, backed by Redis.
+  # Buckets are per Envoy replica, so the effective ceiling is this times the replica count.
+  rateLimit:
+    local:
+      rules:
+        - clientSelectors:
+            - sourceCIDR:
+                type: Distinct
+                value: 0.0.0.0/0
+          limit:
+            requests: {{ $gw.edgeRateLimit.requestsPerMinute }}
+            unit: Minute
+        - clientSelectors:
+            - sourceCIDR:
+                type: Distinct
+                value: ::/0
+          limit:
+            requests: {{ $gw.edgeRateLimit.requestsPerMinute }}
+            unit: Minute
+  {{- end }}
+  # Retry only when the request provably never reached api-gateway (connection refused,
+  # stream refused, reset before headers were sent), which is what a pod being replaced
+  # mid-rollout looks like. Anything later could double-submit a non-idempotent POST.
+  retry:
+    numRetries: 2
+    retryOn:
+      triggers:
+        - connect-failure
+        - refused-stream
+        - reset-before-request
+    perRetry:
+      backOff:
+        baseInterval: 100ms
+        maxInterval: 1s
+{{- end }}

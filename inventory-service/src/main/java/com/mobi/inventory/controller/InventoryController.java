@@ -2,10 +2,18 @@ package com.mobi.inventory.controller;
 
 import com.mobi.inventory.dto.BatchReserveRequest;
 import com.mobi.inventory.dto.BatchReserveResponse;
-import com.mobi.inventory.dto.CreateInventoryRequest;
-import com.mobi.inventory.dto.InventoryQuantityRequest;
+import com.mobi.inventory.dto.AdjustStockRequest;
 import com.mobi.inventory.dto.InventoryResponse;
+import com.mobi.inventory.dto.PageResponse;
+import com.mobi.inventory.dto.StockAdjustmentResponse;
+import com.mobi.inventory.dto.StockAdjustmentResult;
+import com.mobi.inventory.dto.UpdateInventoryRequest;
 import com.mobi.inventory.service.InventoryService;
+import com.mobi.inventory.service.StockLedgerService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,15 +31,11 @@ import java.util.List;
 public class InventoryController {
 
     private final InventoryService inventoryService;
+    private final StockLedgerService stockLedgerService;
 
-    public InventoryController(InventoryService inventoryService) {
+    public InventoryController(InventoryService inventoryService, StockLedgerService stockLedgerService) {
         this.inventoryService = inventoryService;
-    }
-
-    @PostMapping("/products")
-    @ResponseStatus(HttpStatus.CREATED)
-    public InventoryResponse createInventory(@Valid @RequestBody CreateInventoryRequest request) {
-        return inventoryService.createInventory(request);
+        this.stockLedgerService = stockLedgerService;
     }
 
     @GetMapping("/products")
@@ -44,19 +48,26 @@ public class InventoryController {
         return inventoryService.getInventoryByProductId(productId);
     }
 
-    @PostMapping("/products/{productId}/reserve")
-    public InventoryResponse reserve(@PathVariable Long productId, @Valid @RequestBody InventoryQuantityRequest request) {
-        return inventoryService.reserve(productId, request.getQuantity());
+    // Warehouse and admin: the only way to change stock by hand. Creates the stock
+    // record on the first positive adjustment.
+    @PostMapping("/products/{productId}/adjustments")
+    @ResponseStatus(HttpStatus.CREATED)
+    public StockAdjustmentResult adjust(@PathVariable Long productId, @Valid @RequestBody AdjustStockRequest request,
+                                        @AuthenticationPrincipal Jwt caller) {
+        return stockLedgerService.adjustManually(productId, request.quantityDelta(), request.reason(), request.note(),
+                caller.getSubject());
     }
 
-    @PostMapping("/products/{productId}/release")
-    public InventoryResponse release(@PathVariable Long productId, @Valid @RequestBody InventoryQuantityRequest request) {
-        return inventoryService.release(productId, request.getQuantity());
+    @GetMapping("/products/{productId}/adjustments")
+    public PageResponse<StockAdjustmentResponse> adjustments(@PathVariable Long productId,
+                                                             @RequestParam(defaultValue = "0") int page,
+                                                             @RequestParam(defaultValue = "20") int size) {
+        return stockLedgerService.history(productId, page, size);
     }
 
-    @PostMapping("/products/{productId}/deduct")
-    public InventoryResponse deduct(@PathVariable Long productId, @Valid @RequestBody InventoryQuantityRequest request) {
-        return inventoryService.deduct(productId, request.getQuantity());
+    @PatchMapping("/products/{productId}")
+    public InventoryResponse updateDetails(@PathVariable Long productId, @Valid @RequestBody UpdateInventoryRequest request) {
+        return stockLedgerService.updateDetails(productId, request);
     }
 
     @PostMapping("/reservations")
@@ -69,6 +80,13 @@ public class InventoryController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void releaseReservation(@PathVariable String reservationKey) {
         inventoryService.releaseReservation(reservationKey);
+    }
+
+    // After a refund with restock: puts the sold quantities back on the shelf. Idempotent.
+    @PostMapping("/reservations/{reservationKey}/return")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void returnReservation(@PathVariable String reservationKey) {
+        inventoryService.returnReservation(reservationKey);
     }
 
     @PostMapping("/reservations/{reservationKey}/confirm")

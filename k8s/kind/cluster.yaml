@@ -3,8 +3,9 @@ apiVersion: kind.x-k8s.io/v1alpha4
 name: mobi
 nodes:
   - role: control-plane
-    labels:
-      ingress-ready: "true"
+    # Host ports 80/443 land on NodePorts 30080/30443, which the chart's EnvoyProxy pins
+    # the Envoy Gateway Service to in values-local.yaml. kind has no LoadBalancer, so
+    # this is how http://localhost reaches the cluster.
     extraPortMappings:
       - containerPort: 30080
         hostPort: 80

@@ -15,6 +15,9 @@ public class UserEvent {
     private Long userId;
     private String username;
     private String email;
+    private String phone;
+    private String role;
+    private Boolean enabled;
     private LocalDateTime occurredAt;
 
     public UserEvent() {}
@@ -33,6 +36,15 @@ public class UserEvent {
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
+
+    public Boolean getEnabled() { return enabled; }
+    public void setEnabled(Boolean enabled) { this.enabled = enabled; }
+
+    public String getPhone() { return phone; }
+    public void setPhone(String phone) { this.phone = phone; }
 
     public LocalDateTime getOccurredAt() { return occurredAt; }
     public void setOccurredAt(LocalDateTime occurredAt) { this.occurredAt = occurredAt; }

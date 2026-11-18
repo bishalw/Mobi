@@ -32,6 +32,10 @@ public class InventoryItem {
     @Column(length = 100)
     private String warehouseLocation;
 
+    // At or below this, the product is low on stock. 0 turns the alert off.
+    @Column(nullable = false)
+    private int reorderLevel;
+
     @Version
     private Long version;
 
@@ -100,6 +104,18 @@ public class InventoryItem {
 
     public void setWarehouseLocation(String warehouseLocation) {
         this.warehouseLocation = warehouseLocation;
+    }
+
+    public int getReorderLevel() {
+        return reorderLevel;
+    }
+
+    public void setReorderLevel(int reorderLevel) {
+        this.reorderLevel = reorderLevel;
+    }
+
+    public boolean isLowStock() {
+        return reorderLevel > 0 && availableQuantity <= reorderLevel;
     }
 
     public Long getVersion() {

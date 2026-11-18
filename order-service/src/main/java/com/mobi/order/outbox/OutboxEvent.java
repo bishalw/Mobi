@@ -47,6 +47,10 @@ public class OutboxEvent {
     @Column(length = 500)
     private String lastError;
 
+    // W3C traceparent of the request that wrote this row; see OutboxTracing.
+    @Column(length = 55)
+    private String traceparent;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -91,6 +95,14 @@ public class OutboxEvent {
 
     public int getAttempts() {
         return attempts;
+    }
+
+    public String getTraceparent() {
+        return traceparent;
+    }
+
+    public void setTraceparent(String traceparent) {
+        this.traceparent = traceparent;
     }
 
     public LocalDateTime getPublishedAt() {

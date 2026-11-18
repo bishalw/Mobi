@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/layout :: layout(~{::section})}">
+<body>
+<section>
+    <h1 style="font-size:22px;margin:0 0 12px;">Low stock: <span th:text="${productName} ?: |product #${productId}|">Pixel 10 Pro</span></h1>
+    <p style="margin:0 0 12px;">Only <strong th:text="${availableQuantity}">4</strong> left, at or below its reorder level of <span th:text="${reorderLevel}">5</span><span th:if="${warehouseLocation}" th:text="| (${warehouseLocation})|"> (Shelf A1)</span>.</p>
+    <p style="margin:0;color:#52525b;">Raise a purchase order from the Purchase orders page if it needs restocking.</p>
+</section>
+</body>
+</html>

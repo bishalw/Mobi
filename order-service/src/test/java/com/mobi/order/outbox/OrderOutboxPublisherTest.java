@@ -31,7 +31,7 @@ class OrderOutboxPublisherTest {
         when(kafkaTemplate.send(eq("order-events"), eq("42"), any(OrderEvent.class)))
                 .thenReturn(CompletableFuture.completedFuture(null));
 
-        new OrderOutboxPublisher(repository, kafkaTemplate, 7).publishPendingEvents();
+        new OrderOutboxPublisher(repository, kafkaTemplate, 7, OutboxTracing.noop()).publishPendingEvents();
 
         assertEquals(OutboxStatus.PUBLISHED, outboxEvent.getStatus());
     }
@@ -52,7 +52,7 @@ class OrderOutboxPublisherTest {
         when(kafkaTemplate.send(eq("order-events"), eq("42"), any(OrderEvent.class)))
                 .thenReturn(CompletableFuture.failedFuture(new RuntimeException("kafka down")));
 
-        new OrderOutboxPublisher(repository, kafkaTemplate, 7).publishPendingEvents();
+        new OrderOutboxPublisher(repository, kafkaTemplate, 7, OutboxTracing.noop()).publishPendingEvents();
 
         assertEquals(OutboxStatus.PENDING, outboxEvent.getStatus());
         assertEquals(1, outboxEvent.getAttempts());

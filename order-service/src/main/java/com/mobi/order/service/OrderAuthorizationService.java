@@ -45,10 +45,6 @@ public class OrderAuthorizationService {
     }
 
     private Long currentUserId(Authentication authentication) {
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof CurrentUser currentUser) {
-            return currentUser.userId();
-        }
-        return null;
+        return CurrentUser.from(authentication).map(CurrentUser::userId).orElse(null);
     }
 }
